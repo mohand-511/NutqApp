@@ -205,7 +205,7 @@ export default function LoyaltyScreen() {
                   style={({ pressed }) => [
                     styles.rewardCard,
                     isRedeemed && styles.rewardCardRedeemed,
-                    pressed && canContinue && { opacity: 0.85 },
+                    pressed && canRedeem && { opacity: 0.85 },
                   ]}
                 >
                   <LinearGradient
