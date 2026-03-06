@@ -1,0 +1,211 @@
+Name app: نطق
+Design a professional AI-powered mobile application (name to be decided later).
+The app’s core purpose is: Talk, Learn, and Complete Tasks using AI.
+The design must follow modern 2026 UI/UX standards with a gamified and futuristic experience.
+
+--------------------------------------------------
+
+🎨 BRANDING & VISUAL IDENTITY
+
+Primary Colors:
+- Professional Blue
+- Tech Purple (used in gradients)
+- Deep Black (for contrast sections)
+
+Background Style:
+- 2026 modern style
+- Subtle small square grid pattern
+- Minimal futuristic look
+
+Typography:
+- Cairo Font (All weights: Bold, SemiBold, Regular)
+
+Language Support:
+- Arabic (Primary language – RTL)
+- English (Secondary language – LTR)
+- Full RTL & LTR support
+
+--------------------------------------------------
+
+📱 APP STRUCTURE & PAGES
+
+1) Welcome & Authentication Page
+
+Includes:
+- Modern welcome screen with engaging headline
+- Short description about the app
+- “Get Started” button
+
+Authentication Features:
+- Email login
+- Google login
+- Apple login
+- Sign up
+- Forgot password
+- OTP verification
+- Privacy Policy & Terms
+- Language selection on first launch
+
+Design:
+- Rounded buttons
+- Clean layout
+- Smooth micro-interactions
+
+--------------------------------------------------
+
+2) Learning Goal Questions Page
+
+Interactive onboarding screen with:
+
+- Question: “What is your learning goal?”
+- Options such as:
+- Improve my skills
+- University support
+- Improve English
+- Professional development
+- Learn AI skills
+- Custom goal
+
+- Level selection:
+- Beginner
+- Intermediate
+- Advanced
+
+- Daily time selection (minutes per day)
+
+Design:
+- Card-based layout
+- Progress indicator at the top
+
+--------------------------------------------------
+
+3) Home Page (Gamified Learning Path)
+
+Inspired by Duolingo style but with a modern Saudi identity.
+
+Top Section:
+- “Hello, [User Name]”
+- Three dots menu icon
+- Points display
+- Streak counter 🔥
+
+Middle Section:
+- Vertical gamified path
+- Circular stages
+- Locked stages show lock icon
+- Completed stages turn Blue/Purple
+
+Inside Each Stage:
+- 3D wavy-style avatar wearing Saudi traditional clothing (Thobe & Ghutra)
+- Subtle animation while speaking
+- Text chat
+- Voice input button
+- Text-to-speech support
+- Automatic correction
+- Points reward upon completion
+- Star rating system
+
+--------------------------------------------------
+
+4) “Solif” Page (Free Talk Mode)
+
+Dedicated free conversation space with AI.
+
+Features:
+- Same Saudi avatar with enhanced interaction
+- Light lip-sync animation while speaking
+- Full chat interface:
+- Text messaging
+- Voice messaging
+- Save conversations
+- Share conversations
+
+Conversation Modes:
+- Casual talk
+- Scientific discussion
+- Role play scenarios
+- Interview practice
+
+Design:
+- Slight dark immersive mode
+- Purple glow accents
+
+--------------------------------------------------
+
+5) Loyalty Page
+
+Displays collected points and rewards system.
+
+Includes:
+- Total points
+- Level progress bar
+- User ranking
+
+Rewards Redemption with Real Saudi Partners:
+- Jarir Bookstore
+- STC
+- Al Baik
+- Extra Stores
+- Flynas
+
+For each partner display:
+- Real logo
+- Reward description
+- Required points
+- Redeem button
+
+--------------------------------------------------
+
+6) Profile & Settings Page
+
+Profile Section:
+- Profile picture
+- Edit name
+- Edit email
+- Edit learning goal
+- Achievements display
+
+Privacy:
+- Data control
+- Download my data
+- Delete account
+- Manage sessions
+
+General Settings:
+- Change language
+- Dark / Light mode
+- Notifications
+- Audio settings
+- Enable / Disable AI Voice
+
+--------------------------------------------------
+
+⚙️ TECHNICAL FEATURES
+
+- AI conversational engine
+- Text-to-Speech & Speech-to-Text
+- Gamification system
+- Points & streak system
+- Level-based progression
+- Full RTL & LTR support
+- Micro animations
+- 3D animated avatar
+- Rewards API integration
+- Admin dashboard for managing content and stages
+
+--------------------------------------------------
+
+🎯 DESIGN STYLE
+
+- Minimal Futuristic
+- Gamified Experience
+- Modern Saudi Identity
+- Black glass sections
+- 2026 subtle grid background
+
+--------------------------------------------------
+
+Deliver a complete mobile app UI/UX concept ready for implementation.
+- Motion UI
+- Soft shadows
+- Blue × Purple gradients
