@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
+import { shadow } from "@/constants/shadows";
 import { GridBackground } from "@/components/GridBackground";
 
 export default function ForgotPasswordScreen() {
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, fontSize: 15, fontFamily: "Cairo_400Regular", color: Colors.text, paddingVertical: 14, textAlign: "right" },
   sendBtn: {
     width: "100%", borderRadius: 16, overflow: "hidden",
-    shadowColor: Colors.blue, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
+    ...shadow(Colors.blue, 6),
   },
   sendBtnGrad: { paddingVertical: 18, alignItems: "center", borderRadius: 16 },
   sendBtnText: { fontSize: 17, fontFamily: "Cairo_700Bold", color: "#fff" },

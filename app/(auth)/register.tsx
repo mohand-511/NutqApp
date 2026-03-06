@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
+import { shadow } from "@/constants/shadows";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
 
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, fontFamily: "Cairo_400Regular", color: Colors.error, textAlign: "right", flex: 1 },
   registerBtn: {
     borderRadius: 16, overflow: "hidden", marginTop: 4,
-    shadowColor: Colors.blue, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6,
+    ...shadow(Colors.blue, 6),
   },
   registerBtnGrad: { paddingVertical: 18, alignItems: "center", borderRadius: 16 },
   registerBtnText: { fontSize: 17, fontFamily: "Cairo_700Bold", color: "#fff" },

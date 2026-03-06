@@ -25,6 +25,7 @@ export const Colors = {
   black: "#000000",
   tabBar: "rgba(5,5,8,0.92)",
   border: "#1A1A2E",
+  cardBorder: "#22223A",
 };
 
 export default {

@@ -20,6 +20,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
+import { shadow } from "@/constants/shadows";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
 
@@ -328,13 +329,9 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: Colors.blue,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    ...shadow(Colors.blue, 6),
   },
-  nextBtnDisabled: { shadowOpacity: 0, elevation: 0 },
+  nextBtnDisabled: { elevation: 0 },
   nextBtnGrad: {
     paddingVertical: 18,
     alignItems: "center",

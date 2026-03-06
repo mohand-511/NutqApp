@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { Colors } from "@/constants/colors";
+import { shadow } from "@/constants/shadows";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
 
@@ -271,11 +272,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     marginTop: 4,
-    shadowColor: Colors.blue,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 6,
+    ...shadow(Colors.blue, 6),
   },
   loginBtnGrad: {
     paddingVertical: 18,

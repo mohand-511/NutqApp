@@ -7,6 +7,7 @@ import {
   Dimensions,
   Platform,
 } from "react-native";
+import { shadow, glowShadow } from "@/constants/shadows";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -200,11 +201,7 @@ const styles = StyleSheet.create({
     height: 88,
     borderRadius: 26,
     overflow: "hidden",
-    shadowColor: Colors.blue,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-    elevation: 12,
+    ...glowShadow(Colors.blue),
   },
   logoGradient: {
     flex: 1,
@@ -281,11 +278,7 @@ const styles = StyleSheet.create({
   primaryBtn: {
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: Colors.blue,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    ...shadow(Colors.blue, 8),
   },
   primaryBtnGradient: {
     paddingVertical: 18,
