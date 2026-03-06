@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   Platform, ActivityIndicator, Switch, Animated,
@@ -11,7 +11,7 @@ import { router } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 import NutqLogo from "@/components/NutqLogo";
 
 // ─────────────────────────────────────────────────────────────
@@ -89,12 +89,14 @@ function SectionCard({ children, title, titleEn, isRTL, colors, icon, iconColor 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark, toggleTheme } = useTheme();
-  const { profile, points, streak, xp, completedStages, settings, logout, updateSettings, language, setLanguage } = useApp();
+  const { profile, points, streak, xp, completedStages, settings, logout, updateSettings, language, setLanguage, userId } = useApp();
 
   const [aiCoaching, setAiCoaching] = useState("");
   const [coachingLoading, setCoachingLoading] = useState(false);
   const [coachingFetched, setCoachingFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "activity" | "settings">("overview");
+  const [activityLog, setActivityLog] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   const themeAnim = useRef(new Animated.Value(isDark ? 0 : 1)).current;
 
   const isRTL = language === "ar";
@@ -104,6 +106,36 @@ export default function ProfileScreen() {
   const levelInfo = LEVEL_MAP[profile.level] || LEVEL_MAP.beginner;
   const xpToNext = 1000 - (xp % 1000);
   const xpPercent = ((xp % 1000) / 1000) * 100;
+
+  function formatRelative(dateStr: string, ar: boolean): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    const hrs  = Math.floor(mins / 60);
+    const days = Math.floor(hrs / 24);
+    if (mins < 2)  return ar ? "الآن" : "just now";
+    if (mins < 60) return ar ? `منذ ${mins} دقيقة` : `${mins}m ago`;
+    if (hrs < 24)  return ar ? `منذ ${hrs} ساعة` : `${hrs}h ago`;
+    if (days === 1) return ar ? "أمس" : "yesterday";
+    return ar ? `منذ ${days} أيام` : `${days}d ago`;
+  }
+
+  const fetchActivity = useCallback(async () => {
+    if (!userId || activityLoading) return;
+    setActivityLoading(true);
+    try {
+      const url = new URL(`/api/user/activity?userId=${userId}&limit=20`, getApiUrl());
+      const res = await fetch(url.toString());
+      if (res.ok) {
+        const data = await res.json();
+        setActivityLog(data);
+      }
+    } catch {}
+    setActivityLoading(false);
+  }, [userId]);
+
+  useEffect(() => {
+    if (activeTab === "activity" && userId) fetchActivity();
+  }, [activeTab, userId]);
 
   function handleToggleTheme() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -155,15 +187,6 @@ export default function ProfileScreen() {
     return false;
   });
 
-  // ── Activity dummy data (realistic) ──────────────────────────────────────
-  const ACTIVITY = [
-    { id: 1, icon: "chatbubble-ellipses", color: "#6366F1", titleAr: "محادثة مع الذكاء الاصطناعي", titleEn: "AI Conversation", timeAr: "منذ ساعة",        timeEn: "1h ago",  pts: +5 },
-    { id: 2, icon: "trophy",              color: "#F59E0B", titleAr: "أكملت مرحلة التعريف",         titleEn: "Finished Intro Stage", timeAr: "منذ 3 ساعات", timeEn: "3h ago",  pts: +50 },
-    { id: 3, icon: "flame",               color: "#EF4444", titleAr: "سلسلة 3 أيام",                titleEn: "3-Day Streak",    timeAr: "أمس",             timeEn: "Yesterday", pts: +20 },
-    { id: 4, icon: "star",                color: "#10B981", titleAr: "جمعت 100 نقطة",               titleEn: "Earned 100 Points", timeAr: "منذ يومين",     timeEn: "2d ago",  pts: +100 },
-    { id: 5, icon: "mic",                 color: "#EC4899", titleAr: "تدريب صوتي",                  titleEn: "Voice Practice",    timeAr: "منذ 3 أيام",    timeEn: "3d ago",  pts: +15 },
-    { id: 6, icon: "book",                color: "#8B5CF6", titleAr: "تعلّمت كلمة اليوم",           titleEn: "Word of the Day",   timeAr: "منذ 4 أيام",    timeEn: "4d ago",  pts: +5 },
-  ];
 
   return (
     <GridBackground>
@@ -336,11 +359,17 @@ export default function ProfileScreen() {
         {activeTab === "activity" && (
           <SectionCard title="سجل النشاط" titleEn="Activity Log" icon="time" iconColor="#6366F1" isRTL={isRTL} colors={colors}>
             <View style={{ marginTop: 12, gap: 1 }}>
-              {ACTIVITY.map((a, i) => (
+              {activityLoading ? (
+                <ActivityIndicator color="#6366F1" style={{ marginVertical: 20 }} />
+              ) : activityLog.length === 0 ? (
+                <Text style={[actSt.time, { color: colors.textMuted, textAlign: "center", paddingVertical: 20 }]}>
+                  {isRTL ? "لا يوجد نشاط بعد" : "No activity yet"}
+                </Text>
+              ) : activityLog.map((a, i) => (
                 <View key={a.id} style={[actSt.row, {
                   flexDirection: isRTL ? "row" : "row-reverse",
                   borderBottomColor: colors.border,
-                  borderBottomWidth: i < ACTIVITY.length - 1 ? StyleSheet.hairlineWidth : 0,
+                  borderBottomWidth: i < activityLog.length - 1 ? StyleSheet.hairlineWidth : 0,
                 }]}>
                   <View style={[actSt.icon, { backgroundColor: `${a.color}15` }]}>
                     <Ionicons name={a.icon as any} size={16} color={a.color} />
@@ -350,10 +379,12 @@ export default function ProfileScreen() {
                       {isRTL ? a.titleAr : a.titleEn}
                     </Text>
                     <Text style={[actSt.time, { color: colors.textMuted, textAlign: isRTL ? "right" : "left" }]}>
-                      {isRTL ? a.timeAr : a.timeEn}
+                      {formatRelative(a.createdAt, isRTL)}
                     </Text>
                   </View>
-                  <Text style={[actSt.pts, { color: "#10B981" }]}>+{a.pts}</Text>
+                  {a.points > 0 && (
+                    <Text style={[actSt.pts, { color: "#10B981" }]}>+{a.points}</Text>
+                  )}
                 </View>
               ))}
             </View>
