@@ -551,9 +551,16 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   const [transcript, setTranscript] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [nativeInput, setNativeInput] = useState("");
+  const [textInput, setTextInput] = useState("");
+  const phaseRef = useRef<string>("idle");
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Keep phaseRef in sync so async callbacks always see current phase
+  function setPhaseSync(p: "idle" | "listening" | "processing" | "speaking" | "done") {
+    phaseRef.current = p;
+    setPhase(p);
+  }
 
   const ring1 = useSharedValue(1);
   const ring2 = useSharedValue(1);
@@ -610,57 +617,58 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
     opacity: Math.max(0, 2 - ring3.value),
   }));
 
+  // Always use window.fetch for binary/streaming — expo/fetch can't handle arrayBuffer or SSE on web
+  const nativeFetch: typeof globalThis.fetch =
+    typeof window !== "undefined" ? window.fetch.bind(window) : globalThis.fetch;
+
   async function speakText(text: string) {
-    if (Platform.OS !== "web") { setPhase("done"); return; }
+    if (!text.trim()) { setPhaseSync("done"); return; }
+    if (Platform.OS !== "web") { setPhaseSync("done"); return; }
     try {
       const baseUrl = getApiUrl();
-      // Use native window.fetch for binary audio — expo/fetch doesn't support arrayBuffer properly
-      const nativeFetch = typeof window !== "undefined" ? window.fetch.bind(window) : globalThis.fetch;
       const res = await nativeFetch(`${baseUrl}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: text.slice(0, 500), voice: "shimmer" }),
       });
-      if (!res.ok) { setPhase("done"); return; }
+      if (!res.ok) { setPhaseSync("done"); return; }
       const arrayBuf = await res.arrayBuffer();
       const blob = new Blob([arrayBuf], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
-      // Stop any previous audio
+      const blobUrl = URL.createObjectURL(blob);
       if (audioRef.current) {
         audioRef.current.pause();
         try { URL.revokeObjectURL(audioRef.current.src); } catch {}
       }
-      const audio = new Audio(url);
+      const audio = new Audio(blobUrl);
       audioRef.current = audio;
-      setPhase("speaking");
+      setPhaseSync("speaking");
+      audio.onended = () => { setPhaseSync("done"); try { URL.revokeObjectURL(blobUrl); } catch {} };
+      audio.onerror = () => { setPhaseSync("done"); try { URL.revokeObjectURL(blobUrl); } catch {} };
       const playPromise = audio.play();
       if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            audio.onended = () => { setPhase("done"); try { URL.revokeObjectURL(url); } catch {} };
-          })
-          .catch(() => {
-            // Autoplay blocked — set done and show the response
-            setPhase("done");
-            try { URL.revokeObjectURL(url); } catch {}
-          });
+        playPromise.catch(() => {
+          // Autoplay blocked — show response but skip audio
+          setPhaseSync("done");
+          try { URL.revokeObjectURL(blobUrl); } catch {}
+        });
       }
-      audio.onerror = () => { setPhase("done"); try { URL.revokeObjectURL(url); } catch {}; };
     } catch {
-      setPhase("done");
+      setPhaseSync("done");
     }
   }
 
   async function sendToAI(text: string) {
-    setPhase("processing");
+    setPhaseSync("processing");
     setErrorMsg("");
     try {
       const baseUrl = getApiUrl();
-      const response = await fetch(`${baseUrl}api/chat`, {
+      // Use window.fetch for proper ReadableStream / SSE support
+      const response = await nativeFetch(`${baseUrl}api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ messages: [{ role: "user", content: text }], mode: "casual" }),
       });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader");
       const decoder = new TextDecoder();
@@ -674,78 +682,89 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
         buffer = lines.pop() || "";
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6);
-          if (data === "[DONE]") continue;
+          const data = line.slice(6).trim();
+          if (data === "[DONE]" || !data) continue;
           try {
             const parsed = JSON.parse(data);
             if (parsed.content) { full += parsed.content; setAiResponse(full); }
           } catch {}
         }
       }
+      if (!full.trim()) throw new Error("Empty response");
       await speakText(full);
-    } catch {
+    } catch (e: any) {
       setErrorMsg(language === "ar" ? "تعذر الاتصال. حاول مرة أخرى." : "Connection failed. Try again.");
-      setPhase("idle");
+      setPhaseSync("idle");
     }
   }
 
   function startListening() {
+    setTranscript("");
+    setAiResponse("");
+    setErrorMsg("");
     if (Platform.OS === "web") {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SR) {
-        setPhase("listening");
-        setTranscript("");
-        setAiResponse("");
-        setErrorMsg("");
-        const rec = new SR();
-        recognitionRef.current = rec;
-        rec.lang = language === "ar" ? "ar-SA" : "en-US";
-        rec.continuous = false;
-        rec.interimResults = true;
-        rec.onresult = (event: any) => {
-          const t = Array.from(event.results)
-            .map((r: any) => r[0].transcript)
-            .join("");
-          setTranscript(t);
-          if (event.results[event.results.length - 1].isFinal) {
-            rec.stop();
-            sendToAI(t);
-          }
-        };
-        rec.onerror = () => {
-          setErrorMsg(language === "ar" ? "تعذر الاستماع. تحقق من إذن الميكروفون." : "Mic access denied.");
-          setPhase("idle");
-        };
-        rec.onend = () => {
-          if (phase === "listening") setPhase("idle");
-        };
-        rec.start();
-      } else {
-        setErrorMsg(language === "ar" ? "المتصفح لا يدعم التعرف على الصوت" : "Browser doesn't support voice recognition");
+      if (!SR) {
+        setErrorMsg(language === "ar" ? "المتصفح لا يدعم التعرف على الصوت — استخدم Chrome" : "Browser doesn't support voice recognition — use Chrome");
+        return;
       }
+      setPhaseSync("listening");
+      const rec = new SR();
+      recognitionRef.current = rec;
+      rec.lang = language === "ar" ? "ar-SA" : "en-US";
+      rec.continuous = false;
+      rec.interimResults = true;
+      let finalSent = false;
+      rec.onresult = (event: any) => {
+        const t = Array.from(event.results as any[])
+          .map((r: any) => r[0].transcript)
+          .join("");
+        setTranscript(t);
+        if ((event.results[event.results.length - 1] as any).isFinal && !finalSent) {
+          finalSent = true;
+          rec.stop();
+          sendToAI(t);
+        }
+      };
+      rec.onerror = (e: any) => {
+        const msg = e.error === "not-allowed"
+          ? (language === "ar" ? "تم رفض الميكروفون — أذِن في المتصفح" : "Microphone denied — allow it in browser settings")
+          : (language === "ar" ? "خطأ في الميكروفون" : "Microphone error");
+        setErrorMsg(msg);
+        setPhaseSync("idle");
+      };
+      rec.onend = () => {
+        // Use phaseRef (not phase) to avoid stale closure — only reset if still in listening
+        if (phaseRef.current === "listening") setPhaseSync("idle");
+      };
+      rec.start();
+    } else {
+      // Native: focus text input instead
+      setPhaseSync("idle");
     }
   }
 
   function stopListening() {
     recognitionRef.current?.stop();
-    setPhase("idle");
+    setPhaseSync("idle");
   }
 
-  function handleNativeSend() {
-    const t = nativeInput.trim();
-    if (!t) return;
+  function handleTextSend() {
+    const t = textInput.trim();
+    if (!t || phaseRef.current === "processing" || phaseRef.current === "speaking") return;
     setTranscript(t);
-    setNativeInput("");
+    setTextInput("");
     sendToAI(t);
   }
 
   function reset() {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
     recognitionRef.current?.stop();
-    setPhase("idle");
+    setPhaseSync("idle");
     setTranscript("");
     setAiResponse("");
     setErrorMsg("");
+    setTextInput("");
   }
 
   const micColor = phase === "listening" ? "#EF4444" : phase === "speaking" ? "#10B981" : colors.purple;
@@ -771,7 +790,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
             <View style={{ width: 34 }} />
           </View>
 
-          <View style={vmStyles.micArea}>
+          <View style={[vmStyles.micArea, Platform.OS !== "web" ? { height: 120 } : undefined]}>
             {phase === "listening" && (
               <>
                 <Animated.View style={[vmStyles.ring, { borderColor: `${micColor}30` }, r3Style]} />
@@ -786,29 +805,36 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
                 ))}
               </View>
             )}
-            <Pressable
-              onPress={phase === "idle" || phase === "done" ? startListening : phase === "speaking" ? reset : stopListening}
-              disabled={phase === "processing"}
-              style={({ pressed }) => [vmStyles.micBtn, { backgroundColor: micColor }, pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] }]}
-            >
-              {phase === "processing" ? (
-                <ActivityIndicator color="#fff" size="large" />
-              ) : phase === "speaking" ? (
-                <Ionicons name="volume-high" size={36} color="#fff" />
-              ) : (
-                <Ionicons name={phase === "listening" ? "stop" : "mic"} size={36} color="#fff" />
-              )}
-            </Pressable>
+            {/* Mic button: shown on web for voice input; on native shows processing/speaking state only */}
+            {(Platform.OS === "web" || phase === "processing" || phase === "speaking") && (
+              <Pressable
+                onPress={Platform.OS === "web"
+                  ? (phase === "idle" || phase === "done" ? startListening : phase === "speaking" ? reset : stopListening)
+                  : reset}
+                disabled={phase === "processing"}
+                style={({ pressed }) => [vmStyles.micBtn, { backgroundColor: micColor }, pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] }]}
+              >
+                {phase === "processing" ? (
+                  <ActivityIndicator color="#fff" size="large" />
+                ) : phase === "speaking" ? (
+                  <Ionicons name="volume-high" size={36} color="#fff" />
+                ) : (
+                  <Ionicons name={phase === "listening" ? "stop" : "mic"} size={36} color="#fff" />
+                )}
+              </Pressable>
+            )}
           </View>
 
           <Text style={[vmStyles.phaseLabel, { color: colors.textSecondary }]}>
             {phase === "idle" || phase === "done"
-              ? language === "ar" ? "اضغط للتحدث" : "Tap to speak"
+              ? Platform.OS === "web"
+                ? (language === "ar" ? "اضغط للتحدث أو اكتب أدناه" : "Tap mic or type below")
+                : (language === "ar" ? "اكتب رسالتك أدناه" : "Type your message below")
               : phase === "listening"
               ? language === "ar" ? "يستمع... اضغط للإيقاف" : "Listening... tap to stop"
               : phase === "speaking"
-              ? language === "ar" ? "🔊 يتكلم..." : "🔊 Speaking..."
-              : language === "ar" ? "يفكر..." : "Thinking..."}
+              ? language === "ar" ? "يتكلم نطق..." : "Nutq is speaking..."
+              : language === "ar" ? "يفكر نطق..." : "Nutq is thinking..."}
           </Text>
 
           {transcript !== "" && (
@@ -838,25 +864,27 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
             <Text style={[vmStyles.errorText, { color: colors.error }]}>{errorMsg}</Text>
           )}
 
-          {Platform.OS !== "web" && (
-            <View style={[vmStyles.nativeInputRow, { borderColor: colors.border, backgroundColor: colors.backgroundCard }]}>
-              <Pressable
-                onPress={handleNativeSend}
-                disabled={!nativeInput.trim() || phase === "processing"}
-                style={[vmStyles.nativeSendBtn, { backgroundColor: colors.blue }]}
-              >
-                <Ionicons name="send" size={16} color="#fff" />
-              </Pressable>
-              <TextInput
-                style={[vmStyles.nativeInput, { color: colors.text }]}
-                placeholder={language === "ar" ? "اكتب رسالتك..." : "Type your message..."}
-                placeholderTextColor={colors.textMuted}
-                value={nativeInput}
-                onChangeText={setNativeInput}
-                textAlign={isRTL ? "right" : "left"}
-              />
-            </View>
-          )}
+          {/* Text input — always visible on all platforms as fallback */}
+          <View style={[vmStyles.nativeInputRow, { borderColor: colors.border, backgroundColor: isDark ? "rgba(255,255,255,0.06)" : colors.backgroundCard }]}>
+            <Pressable
+              onPress={handleTextSend}
+              disabled={!textInput.trim() || phase === "processing" || phase === "speaking"}
+              style={[vmStyles.nativeSendBtn, { backgroundColor: !textInput.trim() ? colors.textMuted : colors.blue, opacity: !textInput.trim() ? 0.4 : 1 }]}
+            >
+              <Ionicons name="send" size={16} color="#fff" />
+            </Pressable>
+            <TextInput
+              style={[vmStyles.nativeInput, { color: colors.text }]}
+              placeholder={language === "ar" ? "أو اكتب رسالتك..." : "Or type your message..."}
+              placeholderTextColor={colors.textMuted}
+              value={textInput}
+              onChangeText={setTextInput}
+              onSubmitEditing={handleTextSend}
+              returnKeyType="send"
+              textAlign={isRTL ? "right" : "left"}
+              editable={phase !== "processing" && phase !== "speaking"}
+            />
+          </View>
 
           {phase === "done" && (
             <Pressable onPress={reset} style={[vmStyles.resetBtn, { borderColor: colors.border }]}>
