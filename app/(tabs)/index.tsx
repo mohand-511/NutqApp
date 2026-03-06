@@ -23,7 +23,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { fetch } from "expo/fetch";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system";
+import { fetch as expoFetch } from "expo/fetch";
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
@@ -557,6 +559,8 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   const chunksRef = useRef<BlobPart[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const nativeRecordingRef = useRef<Audio.Recording | null>(null);
+  const nativeSoundRef = useRef<Audio.Sound | null>(null);
 
   // Keep phaseRef in sync so async callbacks always see current phase
   function setPhaseSync(p: "idle" | "listening" | "processing" | "speaking" | "done") {
@@ -625,33 +629,63 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
 
   async function speakText(text: string) {
     if (!text.trim()) { setPhaseSync("done"); return; }
-    if (Platform.OS !== "web") { setPhaseSync("done"); return; }
     try {
       const baseUrl = getApiUrl();
-      const res = await nativeFetch(`${baseUrl}api/tts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.slice(0, 500), voice: "shimmer" }),
-      });
-      if (!res.ok) { setPhaseSync("done"); return; }
-      const arrayBuf = await res.arrayBuffer();
-      const blob = new Blob([arrayBuf], { type: "audio/mpeg" });
-      const blobUrl = URL.createObjectURL(blob);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        try { URL.revokeObjectURL(audioRef.current.src); } catch {}
-      }
-      const audio = new Audio(blobUrl);
-      audioRef.current = audio;
-      setPhaseSync("speaking");
-      audio.onended = () => { setPhaseSync("done"); try { URL.revokeObjectURL(blobUrl); } catch {} };
-      audio.onerror = () => { setPhaseSync("done"); try { URL.revokeObjectURL(blobUrl); } catch {} };
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          // Autoplay blocked — show response but skip audio
-          setPhaseSync("done");
-          try { URL.revokeObjectURL(blobUrl); } catch {}
+      if (Platform.OS === "web") {
+        const res = await nativeFetch(`${baseUrl}api/tts`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: text.slice(0, 500), voice: "shimmer" }),
+        });
+        if (!res.ok) { setPhaseSync("done"); return; }
+        const arrayBuf = await res.arrayBuffer();
+        const blob = new Blob([arrayBuf], { type: "audio/mpeg" });
+        const blobUrl = URL.createObjectURL(blob);
+        if (audioRef.current) {
+          audioRef.current.pause();
+          try { URL.revokeObjectURL(audioRef.current.src); } catch {}
+        }
+        const audio = new Audio(blobUrl);
+        audioRef.current = audio;
+        setPhaseSync("speaking");
+        audio.onended = () => { setPhaseSync("done"); try { URL.revokeObjectURL(blobUrl); } catch {} };
+        audio.onerror = () => { setPhaseSync("done"); try { URL.revokeObjectURL(blobUrl); } catch {} };
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => { setPhaseSync("done"); try { URL.revokeObjectURL(blobUrl); } catch {} });
+        }
+      } else {
+        // Native: download MP3 to temp file, play with expo-av
+        const tmpUri = FileSystem.cacheDirectory + `nutq_tts_${Date.now()}.mp3`;
+        const dlRes = await FileSystem.downloadAsync(
+          `${baseUrl}api/tts-get?text=${encodeURIComponent(text.slice(0, 500))}`,
+          tmpUri
+        );
+        if (dlRes.status !== 200) {
+          // Fallback: POST → base64 save
+          const postRes = await fetch(`${baseUrl}api/tts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: text.slice(0, 500), voice: "shimmer" }),
+          });
+          if (!postRes.ok) { setPhaseSync("done"); return; }
+          const b64 = await postRes.text();
+          await FileSystem.writeAsStringAsync(tmpUri, b64, { encoding: FileSystem.EncodingType.Base64 });
+        }
+        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: false });
+        if (nativeSoundRef.current) {
+          try { await nativeSoundRef.current.unloadAsync(); } catch {}
+          nativeSoundRef.current = null;
+        }
+        const { sound } = await Audio.Sound.createAsync({ uri: tmpUri }, { shouldPlay: true });
+        nativeSoundRef.current = sound;
+        setPhaseSync("speaking");
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            setPhaseSync("done");
+            sound.unloadAsync().catch(() => {});
+            FileSystem.deleteAsync(tmpUri, { idempotent: true }).catch(() => {});
+          }
         });
       }
     } catch {
@@ -664,8 +698,9 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
     setErrorMsg("");
     try {
       const baseUrl = getApiUrl();
-      // Use window.fetch for proper ReadableStream / SSE support
-      const response = await nativeFetch(`${baseUrl}api/chat`, {
+      // web: window.fetch for proper SSE/ReadableStream; native: expoFetch supports getReader()
+      const fetchFn = Platform.OS === "web" ? nativeFetch : expoFetch;
+      const response = await fetchFn(`${baseUrl}api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
         body: JSON.stringify({ messages: [{ role: "user", content: text }], mode: "casual" }),
@@ -705,13 +740,94 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
     streamRef.current = null;
   }
 
+  async function startListeningNative() {
+    setTranscript("");
+    setAiResponse("");
+    setErrorMsg("");
+
+    // Request mic permission
+    const { status } = await Audio.requestPermissionsAsync();
+    if (status !== "granted") {
+      setErrorMsg("__mic_denied__");
+      return;
+    }
+
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      nativeRecordingRef.current = recording;
+      setPhaseSync("listening");
+    } catch (err) {
+      setErrorMsg(language === "ar" ? "تعذر الوصول إلى الميكروفون" : "Could not access microphone");
+    }
+  }
+
+  async function stopListeningNative() {
+    const recording = nativeRecordingRef.current;
+    if (!recording) return;
+    nativeRecordingRef.current = null;
+
+    try {
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+    } catch {}
+
+    const uri = recording.getURI();
+    if (!uri) {
+      setErrorMsg(language === "ar" ? "لم يُسمع شيء. حاول مرة أخرى." : "Nothing heard. Try again.");
+      setPhaseSync("idle");
+      return;
+    }
+
+    setPhaseSync("processing");
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const baseUrl = getApiUrl();
+      const sttRes = await fetch(`${baseUrl}api/stt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          audio: base64,
+          mimeType: "audio/m4a",
+          language: language === "ar" ? "ar" : "en",
+        }),
+      });
+      if (!sttRes.ok) throw new Error("STT failed");
+      const { text } = await sttRes.json();
+      if (!text?.trim()) {
+        setErrorMsg(language === "ar" ? "لم يُسمع شيء. حاول مرة أخرى." : "Nothing heard. Try again.");
+        setPhaseSync("idle");
+        return;
+      }
+      setTranscript(text);
+      await sendToAI(text);
+    } catch {
+      setErrorMsg(language === "ar" ? "تعذر التعرف على الصوت. حاول مرة أخرى." : "Speech recognition failed. Try again.");
+      setPhaseSync("idle");
+    } finally {
+      FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+    }
+  }
+
   async function startListening() {
     setTranscript("");
     setAiResponse("");
     setErrorMsg("");
-    if (Platform.OS !== "web") { return; }
 
-    // Check if MediaRecorder is available
+    if (Platform.OS !== "web") {
+      await startListeningNative();
+      return;
+    }
+
+    // Web: MediaRecorder
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setErrorMsg(language === "ar" ? "المتصفح لا يدعم التسجيل الصوتي" : "Browser doesn't support audio recording");
       return;
@@ -733,7 +849,6 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
     streamRef.current = stream;
     chunksRef.current = [];
 
-    // Pick best supported MIME type
     const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
       ? "audio/webm;codecs=opus"
       : MediaRecorder.isTypeSupported("audio/webm")
@@ -753,12 +868,10 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
       stopStream();
       const blob = new Blob(chunksRef.current, { type: mimeType });
       if (blob.size < 1000) {
-        // Too small — user probably didn't say anything
         if (phaseRef.current !== "processing") setPhaseSync("idle");
         return;
       }
       setPhaseSync("processing");
-
       try {
         const reader = new FileReader();
         const base64 = await new Promise<string>((resolve, reject) => {
@@ -770,16 +883,11 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
           reader.onerror = reject;
           reader.readAsDataURL(blob);
         });
-
         const baseUrl = getApiUrl();
         const sttRes = await nativeFetch(`${baseUrl}api/stt`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            audio: base64,
-            mimeType: mimeType.split(";")[0],
-            language: language === "ar" ? "ar" : "en",
-          }),
+          body: JSON.stringify({ audio: base64, mimeType: mimeType.split(";")[0], language: language === "ar" ? "ar" : "en" }),
         });
         if (!sttRes.ok) throw new Error("STT failed");
         const { text } = await sttRes.json();
@@ -801,10 +909,13 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   }
 
   function stopListening() {
+    if (Platform.OS !== "web") {
+      stopListeningNative();
+      return;
+    }
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
     }
-    // Phase will be updated in recorder.onstop after Whisper processes
   }
 
   function handleTextSend() {
@@ -816,11 +927,22 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   }
 
   function reset() {
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-    if (mediaRecorderRef.current?.state === "recording") {
-      try { mediaRecorderRef.current.stop(); } catch {}
+    if (Platform.OS === "web") {
+      if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      if (mediaRecorderRef.current?.state === "recording") {
+        try { mediaRecorderRef.current.stop(); } catch {}
+      }
+      stopStream();
+    } else {
+      if (nativeRecordingRef.current) {
+        try { nativeRecordingRef.current.stopAndUnloadAsync().catch(() => {}); } catch {}
+        nativeRecordingRef.current = null;
+      }
+      if (nativeSoundRef.current) {
+        try { nativeSoundRef.current.stopAsync().catch(() => {}); } catch {}
+        nativeSoundRef.current = null;
+      }
     }
-    stopStream();
     setPhaseSync("idle");
     setTranscript("");
     setAiResponse("");
@@ -851,7 +973,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
             <View style={{ width: 34 }} />
           </View>
 
-          <View style={[vmStyles.micArea, Platform.OS !== "web" ? { height: 120 } : undefined]}>
+          <View style={vmStyles.micArea}>
             {phase === "listening" && (
               <>
                 <Animated.View style={[vmStyles.ring, { borderColor: `${micColor}30` }, r3Style]} />
@@ -866,31 +988,29 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
                 ))}
               </View>
             )}
-            {/* Mic button: shown on web for voice input; on native shows processing/speaking state only */}
-            {(Platform.OS === "web" || phase === "processing" || phase === "speaking") && (
-              <Pressable
-                onPress={Platform.OS === "web"
-                  ? (phase === "idle" || phase === "done" ? startListening : phase === "speaking" ? reset : stopListening)
-                  : reset}
-                disabled={phase === "processing"}
-                style={({ pressed }) => [vmStyles.micBtn, { backgroundColor: micColor }, pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] }]}
-              >
-                {phase === "processing" ? (
-                  <ActivityIndicator color="#fff" size="large" />
-                ) : phase === "speaking" ? (
-                  <Ionicons name="volume-high" size={36} color="#fff" />
-                ) : (
-                  <Ionicons name={phase === "listening" ? "stop" : "mic"} size={36} color="#fff" />
-                )}
-              </Pressable>
-            )}
+            <Pressable
+              onPress={
+                phase === "idle" || phase === "done" ? startListening
+                : phase === "speaking" ? reset
+                : phase === "listening" ? stopListening
+                : undefined
+              }
+              disabled={phase === "processing"}
+              style={({ pressed }) => [vmStyles.micBtn, { backgroundColor: micColor }, pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] }]}
+            >
+              {phase === "processing" ? (
+                <ActivityIndicator color="#fff" size="large" />
+              ) : phase === "speaking" ? (
+                <Ionicons name="volume-high" size={36} color="#fff" />
+              ) : (
+                <Ionicons name={phase === "listening" ? "stop" : "mic"} size={36} color="#fff" />
+              )}
+            </Pressable>
           </View>
 
           <Text style={[vmStyles.phaseLabel, { color: colors.textSecondary }]}>
             {phase === "idle" || phase === "done"
-              ? Platform.OS === "web"
-                ? (language === "ar" ? "اضغط للتحدث أو اكتب أدناه" : "Tap mic or type below")
-                : (language === "ar" ? "اكتب رسالتك أدناه" : "Type your message below")
+              ? (language === "ar" ? "اضغط للتحدث أو اكتب أدناه" : "Tap mic or type below")
               : phase === "listening"
               ? language === "ar" ? "يستمع... اضغط للإيقاف" : "Listening... tap to stop"
               : phase === "speaking"
@@ -926,10 +1046,14 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
               <Ionicons name="mic-off-outline" size={18} color="#EF4444" />
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={[vmStyles.micDeniedText, { color: colors.text }]}>
-                  {language === "ar" ? "الميكروفون محجوب في هذه النافذة" : "Microphone blocked in this preview"}
+                  {Platform.OS === "web"
+                    ? (language === "ar" ? "الميكروفون محجوب في هذه النافذة" : "Microphone blocked in this preview")
+                    : (language === "ar" ? "الميكروفون محجوب" : "Microphone blocked")}
                 </Text>
                 <Text style={[vmStyles.micDeniedSub, { color: colors.textSecondary }]}>
-                  {language === "ar" ? "افتح التطبيق في تبويب جديد للسماح بالميكروفون" : "Open in a new tab to allow microphone access"}
+                  {Platform.OS === "web"
+                    ? (language === "ar" ? "افتح التطبيق في تبويب جديد للسماح بالميكروفون" : "Open in a new tab to allow microphone access")
+                    : (language === "ar" ? "اذهب إلى الإعدادات > نطق > ميكروفون" : "Go to Settings → Nutq → Microphone")}
                 </Text>
               </View>
               {Platform.OS === "web" && (

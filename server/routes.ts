@@ -126,6 +126,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── TTS GET (for native FileSystem.downloadAsync) ────────────────────────
+  app.get("/api/tts-get", async (req, res) => {
+    try {
+      const text = String(req.query.text || "").slice(0, 500);
+      if (!text) return res.status(400).json({ error: "text required" });
+
+      const mp3 = await openai.audio.speech.create({
+        model: "tts-1",
+        voice: "shimmer",
+        input: text,
+      });
+
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+      res.setHeader("Content-Type", "audio/mpeg");
+      res.setHeader("Content-Length", buffer.length);
+      res.send(buffer);
+    } catch (error) {
+      console.error("TTS-GET error:", error);
+      res.status(500).json({ error: "TTS failed" });
+    }
+  });
+
   // ── STT — Speech to Text via OpenAI Whisper ──────────────────────────────
   app.post("/api/stt", async (req, res) => {
     try {
