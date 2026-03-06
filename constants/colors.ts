@@ -1,19 +1,14 @@
-const BLUE = "#2563EB";
-const PURPLE = "#7C3AED";
-const BLUE_LIGHT = "#3B82F6";
-const PURPLE_LIGHT = "#8B5CF6";
-
-export const Colors = {
+export const DarkColors = {
   background: "#050508",
   backgroundSecondary: "#0D0D14",
   backgroundCard: "#111120",
   backgroundCardBorder: "#1E1E32",
-  blue: BLUE,
-  blueLight: BLUE_LIGHT,
-  purple: PURPLE,
-  purpleLight: PURPLE_LIGHT,
-  gradientStart: BLUE,
-  gradientEnd: PURPLE,
+  blue: "#2563EB",
+  blueLight: "#3B82F6",
+  purple: "#7C3AED",
+  purpleLight: "#8B5CF6",
+  gradientStart: "#2563EB",
+  gradientEnd: "#7C3AED",
   text: "#F0F0FF",
   textSecondary: "#8888AA",
   textMuted: "#44445A",
@@ -23,17 +18,54 @@ export const Colors = {
   error: "#EF4444",
   white: "#FFFFFF",
   black: "#000000",
-  tabBar: "rgba(5,5,8,0.92)",
+  tabBar: "rgba(5,5,8,0.95)",
   border: "#1A1A2E",
   cardBorder: "#22223A",
+  glass: "rgba(255,255,255,0.05)",
+  glassBorder: "rgba(255,255,255,0.10)",
+  gridLine: "#1A1A2E",
+  overlay: "rgba(0,0,0,0.75)",
 };
+
+export const LightColors = {
+  background: "#F0F2FF",
+  backgroundSecondary: "#E5E8FA",
+  backgroundCard: "#FFFFFF",
+  backgroundCardBorder: "#D8DCF0",
+  blue: "#2563EB",
+  blueLight: "#3B82F6",
+  purple: "#7C3AED",
+  purpleLight: "#8B5CF6",
+  gradientStart: "#2563EB",
+  gradientEnd: "#7C3AED",
+  text: "#0F0F1E",
+  textSecondary: "#4A4A6A",
+  textMuted: "#9090B0",
+  gold: "#D97706",
+  goldLight: "#F59E0B",
+  success: "#059669",
+  error: "#DC2626",
+  white: "#FFFFFF",
+  black: "#000000",
+  tabBar: "rgba(240,242,255,0.96)",
+  border: "#DDE0F5",
+  cardBorder: "#C8CCE8",
+  glass: "rgba(255,255,255,0.72)",
+  glassBorder: "rgba(255,255,255,0.95)",
+  gridLine: "#DDE0F5",
+  overlay: "rgba(15,15,40,0.55)",
+};
+
+export type ThemeColors = typeof DarkColors;
+
+export const Colors = DarkColors;
 
 export default {
   light: {
-    text: Colors.text,
-    background: Colors.background,
-    tint: Colors.blue,
-    tabIconDefault: Colors.textMuted,
-    tabIconSelected: Colors.blue,
+    text: LightColors.text,
+    background: LightColors.background,
+    tint: LightColors.blue,
+    tabIconDefault: LightColors.textMuted,
+    tabIconSelected: LightColors.blue,
   },
 };

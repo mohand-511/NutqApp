@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Modal,
   ActivityIndicator,
   Dimensions,
+  TextInput,
 } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -22,37 +23,42 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Colors } from "@/constants/colors";
+import { fetch } from "expo/fetch";
+import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
 import { SaudiAvatar } from "@/components/Avatar";
-import { apiRequest } from "@/lib/query-client";
+import { apiRequest, getApiUrl } from "@/lib/query-client";
 
 const { width } = Dimensions.get("window");
 
 const STAGES = [
-  { id: 1, title: "المحادثة الأولى", desc: "أساسيات التواصل اليومي", icon: "chatbubbles-outline", xp: 50, lessons: 3, duration: "10 دقائق", skills: ["التحية", "التعريف بالنفس", "الأسئلة الأساسية"], tip: "ركز على التحدث بثقة، الأخطاء جزء من التعلم!" },
-  { id: 2, title: "الأسئلة والأجوبة", desc: "مهارات الاستفسار والرد", icon: "help-circle-outline", xp: 75, lessons: 4, duration: "15 دقيقة", skills: ["صياغة الأسئلة", "الردود المناسبة", "لغة الجسد"], tip: "اسأل أسئلة مفتوحة لتحفيز المحادثة" },
-  { id: 3, title: "تقديم النفس", desc: "كيف تُقدم نفسك باحتراف", icon: "person-outline", xp: 60, lessons: 3, duration: "12 دقيقة", skills: ["المقدمة الشخصية", "ذكر الاهتمامات", "الانطباع الأول"], tip: "ابتسم وحافظ على التواصل البصري" },
-  { id: 4, title: "الجمل المركبة", desc: "بناء جمل أكثر تعقيداً ودقة", icon: "text-outline", xp: 100, lessons: 5, duration: "20 دقيقة", skills: ["روابط الجمل", "التعبير عن الرأي", "الصفات والأوصاف"], tip: "استخدم روابط مثل: لأن، لذلك، ومع ذلك" },
-  { id: 5, title: "المقابلة الوظيفية", desc: "حضّر نفسك للمقابلات المهنية", icon: "briefcase-outline", xp: 150, lessons: 6, duration: "30 دقيقة", skills: ["STAR Method", "نقاط القوة والضعف", "الأسئلة الصعبة"], tip: "استعد بأمثلة حقيقية من تجاربك" },
-  { id: 6, title: "النقاش والإقناع", desc: "فن الحجة والإقناع المؤثر", icon: "mic-outline", xp: 120, lessons: 5, duration: "25 دقيقة", skills: ["بناء الحجج", "الرد على الاعتراضات", "لغة الإقناع"], tip: "استمع جيداً قبل أن ترد" },
-  { id: 7, title: "الذكاء الاصطناعي", desc: "التحدث عن التقنية والمستقبل", icon: "hardware-chip-outline", xp: 100, lessons: 4, duration: "20 دقيقة", skills: ["مصطلحات التقنية", "نقاش المستقبل", "الآراء التقنية"], tip: "لا تخف من التعبير عن رأيك في التقنية" },
-  { id: 8, title: "الخطابة والعرض", desc: "مهارات التقديم أمام الجمهور", icon: "podium-outline", xp: 150, lessons: 6, duration: "35 دقيقة", skills: ["بنية العرض", "لغة الجسد", "إدارة التوتر"], tip: "تدرب أمام المرآة أو سجّل نفسك" },
+  { id: 1, title: "المحادثة الأولى", titleEn: "First Conversation", desc: "أساسيات التواصل اليومي", descEn: "Daily communication basics", icon: "chatbubbles-outline", xp: 50, lessons: 3, duration: "10 دقائق", durationEn: "10 min", skills: ["التحية", "التعريف بالنفس", "الأسئلة الأساسية"], tip: "ركز على التحدث بثقة، الأخطاء جزء من التعلم!", color: "#2563EB" },
+  { id: 2, title: "الأسئلة والأجوبة", titleEn: "Q&A", desc: "مهارات الاستفسار والرد", descEn: "Inquiry and response skills", icon: "help-circle-outline", xp: 75, lessons: 4, duration: "15 دقيقة", durationEn: "15 min", skills: ["صياغة الأسئلة", "الردود المناسبة", "لغة الجسد"], tip: "اسأل أسئلة مفتوحة لتحفيز المحادثة", color: "#7C3AED" },
+  { id: 3, title: "تقديم النفس", titleEn: "Self Introduction", desc: "كيف تُقدم نفسك باحتراف", descEn: "Present yourself professionally", icon: "person-outline", xp: 60, lessons: 3, duration: "12 دقيقة", durationEn: "12 min", skills: ["المقدمة الشخصية", "ذكر الاهتمامات", "الانطباع الأول"], tip: "ابتسم وحافظ على التواصل البصري", color: "#06B6D4" },
+  { id: 4, title: "الجمل المركبة", titleEn: "Complex Sentences", desc: "بناء جمل أكثر تعقيداً ودقة", descEn: "Build complex, precise sentences", icon: "text-outline", xp: 100, lessons: 5, duration: "20 دقيقة", durationEn: "20 min", skills: ["روابط الجمل", "التعبير عن الرأي", "الصفات والأوصاف"], tip: "استخدم روابط مثل: لأن، لذلك، ومع ذلك", color: "#10B981" },
+  { id: 5, title: "المقابلة الوظيفية", titleEn: "Job Interview", desc: "حضّر نفسك للمقابلات المهنية", descEn: "Prepare for professional interviews", icon: "briefcase-outline", xp: 150, lessons: 6, duration: "30 دقيقة", durationEn: "30 min", skills: ["STAR Method", "نقاط القوة والضعف", "الأسئلة الصعبة"], tip: "استعد بأمثلة حقيقية من تجاربك", color: "#F59E0B" },
+  { id: 6, title: "النقاش والإقناع", titleEn: "Debate & Persuasion", desc: "فن الحجة والإقناع المؤثر", descEn: "The art of persuasive argument", icon: "mic-outline", xp: 120, lessons: 5, duration: "25 دقيقة", durationEn: "25 min", skills: ["بناء الحجج", "الرد على الاعتراضات", "لغة الإقناع"], tip: "استمع جيداً قبل أن ترد", color: "#EF4444" },
+  { id: 7, title: "الذكاء الاصطناعي", titleEn: "Artificial Intelligence", desc: "التحدث عن التقنية والمستقبل", descEn: "Talking about tech & the future", icon: "hardware-chip-outline", xp: 100, lessons: 4, duration: "20 دقيقة", durationEn: "20 min", skills: ["مصطلحات التقنية", "نقاش المستقبل", "الآراء التقنية"], tip: "لا تخف من التعبير عن رأيك في التقنية", color: "#8B5CF6" },
+  { id: 8, title: "الخطابة والعرض", titleEn: "Public Speaking", desc: "مهارات التقديم أمام الجمهور", descEn: "Presentation skills for any audience", icon: "podium-outline", xp: 150, lessons: 6, duration: "35 دقيقة", durationEn: "35 min", skills: ["بنية العرض", "لغة الجسد", "إدارة التوتر"], tip: "تدرب أمام المرآة أو سجّل نفسك", color: "#F97316" },
 ];
 
 type Stage = typeof STAGES[0];
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, points, streak, completedStages, completeStage } = useApp();
+  const { colors, isDark } = useTheme();
+  const { profile, points, streak, completedStages, completeStage, language } = useApp();
   const [activeStage, setActiveStage] = useState<Stage | null>(null);
   const [stageLoading, setStageLoading] = useState(false);
   const [aiHint, setAiHint] = useState("");
   const [hintLoading, setHintLoading] = useState(false);
   const [wordOfDay, setWordOfDay] = useState<{ word: string; translation: string; pronunciation: string; example: string; tip: string } | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
+  const isRTL = language === "ar";
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
+  const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
   const unlockedUpTo = completedStages.length + 1;
 
   useEffect(() => {
@@ -90,98 +96,105 @@ export default function HomeScreen() {
   const dailyProgress = Math.min(completedStages.length, dailyGoal);
   const progressPct = dailyProgress / dailyGoal;
 
+  const s = makeStyles(colors, isRTL, isDark);
+
   return (
     <GridBackground style={{ flex: 1 }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: topPad + 12, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingTop: topPad + 12, paddingBottom: botPad + 110 }}
       >
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.streakBadge}>
-              <Ionicons name="flame" size={16} color="#F97316" />
-              <Text style={styles.streakNum}>{streak}</Text>
-            </View>
+        {/* Header */}
+        <View style={[s.header, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+          <View style={s.streakBadge}>
+            <Ionicons name="flame" size={16} color="#F97316" />
+            <Text style={s.streakNum}>{streak}</Text>
           </View>
-          <View style={styles.headerCenter}>
-            <Text style={styles.appName}>نطق</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <View style={styles.pointsBadge}>
-              <Ionicons name="star" size={14} color={Colors.gold} />
-              <Text style={styles.pointsNum}>{points}</Text>
-            </View>
+          <Text style={s.appName}>نطق</Text>
+          <View style={s.pointsBadge}>
+            <Ionicons name="star" size={14} color={colors.gold} />
+            <Text style={s.pointsNum}>{points}</Text>
           </View>
         </View>
 
-        {/* ── Greeting ── */}
-        <View style={styles.greetingRow}>
-          <Text style={styles.greetingText}>مرحباً، {profile.name} 👋</Text>
-          <Text style={styles.greetingSubtext}>استمر في رحلتك اليوم!</Text>
+        {/* Greeting */}
+        <View style={s.greetingRow}>
+          <Text style={s.greetingText}>
+            {isRTL ? `مرحباً، ${profile.name}` : `Hello, ${profile.name}`}
+          </Text>
+          <Text style={s.greetingSubtext}>
+            {isRTL ? "استمر في رحلتك اليوم!" : "Keep up the great work today!"}
+          </Text>
         </View>
 
-        {/* ── Daily Goal ── */}
-        <View style={styles.goalCard}>
+        {/* Daily Goal Card */}
+        <View style={s.goalCard}>
           <LinearGradient
-            colors={[`${Colors.blue}22`, `${Colors.purple}12`]}
+            colors={isDark ? [`${colors.blue}22`, `${colors.purple}12`] : [`${colors.blue}15`, `${colors.purple}08`]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
           />
-          <View style={styles.goalInner}>
-            <View style={styles.goalHeader}>
-              <Text style={styles.goalPct}>{Math.round(progressPct * 100)}%</Text>
+          <View style={s.goalInner}>
+            <View style={[s.goalHeader, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+              <Text style={s.goalPct}>{Math.round(progressPct * 100)}%</Text>
               <View>
-                <Text style={styles.goalTitle}>هدف اليوم</Text>
-                <Text style={styles.goalSub}>{dailyProgress} من {dailyGoal} مراحل</Text>
+                <Text style={s.goalTitle}>{isRTL ? "هدف اليوم" : "Daily Goal"}</Text>
+                <Text style={s.goalSub}>
+                  {isRTL ? `${dailyProgress} من ${dailyGoal} مراحل` : `${dailyProgress} of ${dailyGoal} stages`}
+                </Text>
               </View>
             </View>
-            <View style={styles.progressTrack}>
+            <View style={s.progressTrack}>
               <LinearGradient
-                colors={[Colors.blue, Colors.purple]}
+                colors={[colors.blue, colors.purple]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={[styles.progressFill, { width: `${Math.max(4, progressPct * 100)}%` }]}
+                style={[s.progressFill, { width: `${Math.max(4, progressPct * 100)}%` }]}
               />
             </View>
-            <View style={styles.goalDots}>
+            <View style={[s.goalDots, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               {Array.from({ length: dailyGoal }).map((_, i) => (
-                <View key={i} style={[styles.goalDot, i < dailyProgress && styles.goalDotFilled]} />
+                <View key={i} style={[s.goalDot, i < dailyProgress && s.goalDotFilled]} />
               ))}
             </View>
           </View>
         </View>
 
-        {/* ── Word of the Day ── */}
+        {/* Word of the Day */}
         {wordOfDay && (
-          <View style={styles.wordCard}>
-            <View style={styles.wordTop}>
-              <Text style={styles.wordPronounce}>{wordOfDay.pronunciation}</Text>
-              <View style={styles.wordBadge}>
-                <Ionicons name="bulb-outline" size={12} color={Colors.gold} />
-                <Text style={styles.wordBadgeLabel}>كلمة اليوم</Text>
+          <View style={s.wordCard}>
+            <LinearGradient
+              colors={isDark ? [`${colors.gold}12`, `${colors.purple}06`] : [`${colors.gold}10`, `${colors.blue}06`]}
+              style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+            />
+            <View style={[s.wordTop, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+              <Text style={s.wordPronounce}>{wordOfDay.pronunciation}</Text>
+              <View style={s.wordBadge}>
+                <Ionicons name="bulb-outline" size={12} color={colors.gold} />
+                <Text style={s.wordBadgeLabel}>{isRTL ? "كلمة اليوم" : "Word of the Day"}</Text>
               </View>
             </View>
-            <Text style={styles.wordMain}>{wordOfDay.word}</Text>
-            <Text style={styles.wordTr}>{wordOfDay.translation}</Text>
-            <View style={styles.wordDivider} />
-            <Text style={styles.wordEx} numberOfLines={2}>{wordOfDay.example}</Text>
+            <Text style={s.wordMain}>{wordOfDay.word}</Text>
+            <Text style={s.wordTr}>{wordOfDay.translation}</Text>
+            <View style={s.wordDivider} />
+            <Text style={s.wordEx} numberOfLines={2}>{wordOfDay.example}</Text>
           </View>
         )}
 
-        {/* ── Learning Path ── */}
-        <View style={styles.pathSection}>
-          <View style={styles.pathHeaderRow}>
-            <Text style={styles.pathProgress}>{completedStages.length}/{STAGES.length}</Text>
-            <Text style={styles.pathTitle}>مسار التعلم</Text>
+        {/* Learning Path */}
+        <View style={s.pathSection}>
+          <View style={[s.pathHeaderRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <View style={s.pathProgressBadge}>
+              <Text style={s.pathProgress}>{completedStages.length}/{STAGES.length}</Text>
+            </View>
+            <Text style={s.pathTitle}>{isRTL ? "مسار التعلم" : "Learning Path"}</Text>
           </View>
 
-          <View style={styles.timeline}>
-            {/* The vertical line */}
-            <View style={styles.timelineLine}>
+          <View style={s.timeline}>
+            <View style={[s.timelineLine, isRTL ? { left: 28 } : { right: 28 }]}>
               <LinearGradient
-                colors={[Colors.blue, Colors.purple, `${Colors.purple}20`]}
+                colors={[colors.blue, colors.purple, `${colors.purple}20`]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFill}
@@ -193,7 +206,6 @@ export default function HomeScreen() {
               const isUnlocked = stage.id <= unlockedUpTo;
               const isActive = stage.id === unlockedUpTo;
               const isLast = index === STAGES.length - 1;
-
               return (
                 <TimelineRow
                   key={stage.id}
@@ -202,6 +214,10 @@ export default function HomeScreen() {
                   isUnlocked={isUnlocked}
                   isActive={isActive}
                   isLast={isLast}
+                  isRTL={isRTL}
+                  isDark={isDark}
+                  colors={colors}
+                  language={language}
                   onPress={() => openStage(stage)}
                 />
               );
@@ -210,102 +226,146 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* ── Stage Detail Modal ── */}
+      {/* Voice Chat FAB */}
+      <Pressable
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setVoiceOpen(true);
+        }}
+        style={({ pressed }) => [
+          s.voiceFab,
+          { bottom: botPad + 90 },
+          pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] },
+        ]}
+      >
+        <LinearGradient
+          colors={[colors.purple, colors.blue]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={s.voiceFabGrad}
+        >
+          <Ionicons name="mic" size={24} color="#fff" />
+        </LinearGradient>
+        <View style={s.voiceFabBadge}>
+          <Ionicons name="hardware-chip-outline" size={9} color="#fff" />
+        </View>
+      </Pressable>
+
+      {/* Stage Detail Modal */}
       {activeStage && (
         <Modal animationType="slide" transparent visible onRequestClose={() => setActiveStage(null)}>
-          <View style={styles.overlay}>
-            <View style={styles.sheet}>
-              <View style={styles.sheetHandle} />
+          <View style={s.overlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={() => setActiveStage(null)} />
+            <View style={s.sheet}>
+              <View style={s.sheetHandle} />
               <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-
-                {/* Stage Icon + Title */}
-                <View style={styles.sheetHero}>
+                <View style={s.sheetHero}>
                   <LinearGradient
-                    colors={[`${Colors.blue}25`, `${Colors.purple}15`]}
-                    style={styles.sheetIconBg}
+                    colors={[`${activeStage.color}30`, `${activeStage.color}10`]}
+                    style={s.sheetIconBg}
                   >
-                    <Ionicons name={activeStage.icon as any} size={36} color={Colors.blueLight} />
+                    <Ionicons name={activeStage.icon as any} size={36} color={activeStage.color} />
                   </LinearGradient>
-                  <Text style={styles.sheetTitle}>{activeStage.title}</Text>
-                  <Text style={styles.sheetDesc}>{activeStage.desc}</Text>
+                  <Text style={s.sheetTitle}>
+                    {isRTL ? activeStage.title : activeStage.titleEn}
+                  </Text>
+                  <Text style={s.sheetDesc}>
+                    {isRTL ? activeStage.desc : activeStage.descEn}
+                  </Text>
                 </View>
 
-                {/* Stats row */}
-                <View style={styles.sheetStats}>
-                  <SheetStat icon="time-outline" label={activeStage.duration} color={Colors.blueLight} />
-                  <View style={styles.sheetStatDivider} />
-                  <SheetStat icon="book-outline" label={`${activeStage.lessons} دروس`} color={Colors.purple} />
-                  <View style={styles.sheetStatDivider} />
-                  <SheetStat icon="star" label={`+${activeStage.xp} XP`} color={Colors.gold} />
+                <View style={s.sheetStats}>
+                  <View style={s.sheetStatItem}>
+                    <Ionicons name="time-outline" size={18} color={colors.blueLight} />
+                    <Text style={[s.sheetStatLabel, { color: colors.blueLight }]}>
+                      {isRTL ? activeStage.duration : activeStage.durationEn}
+                    </Text>
+                  </View>
+                  <View style={s.sheetStatDivider} />
+                  <View style={s.sheetStatItem}>
+                    <Ionicons name="book-outline" size={18} color={colors.purple} />
+                    <Text style={[s.sheetStatLabel, { color: colors.purple }]}>
+                      {isRTL ? `${activeStage.lessons} دروس` : `${activeStage.lessons} lessons`}
+                    </Text>
+                  </View>
+                  <View style={s.sheetStatDivider} />
+                  <View style={s.sheetStatItem}>
+                    <Ionicons name="star" size={18} color={colors.gold} />
+                    <Text style={[s.sheetStatLabel, { color: colors.gold }]}>+{activeStage.xp} XP</Text>
+                  </View>
                 </View>
 
-                {/* Skills */}
-                <View style={styles.sheetSection}>
-                  <Text style={styles.sheetSectionTitle}>المهارات المكتسبة</Text>
-                  <View style={styles.skillsWrap}>
-                    {activeStage.skills.map((s, i) => (
-                      <View key={i} style={styles.skillPill}>
-                        <Ionicons name="checkmark-circle" size={13} color={Colors.success} />
-                        <Text style={styles.skillPillText}>{s}</Text>
+                <View style={s.sheetSection}>
+                  <Text style={s.sheetSectionTitle}>
+                    {isRTL ? "المهارات المكتسبة" : "Skills Gained"}
+                  </Text>
+                  <View style={s.skillsWrap}>
+                    {activeStage.skills.map((sk, i) => (
+                      <View key={i} style={[s.skillPill, { borderColor: `${activeStage.color}40`, backgroundColor: `${activeStage.color}12` }]}>
+                        <Ionicons name="checkmark-circle" size={13} color={activeStage.color} />
+                        <Text style={[s.skillPillText, { color: activeStage.color }]}>{sk}</Text>
                       </View>
                     ))}
                   </View>
                 </View>
 
-                {/* Tip */}
-                <View style={styles.tipBox}>
-                  <Ionicons name="flash" size={16} color={Colors.gold} />
-                  <Text style={styles.tipBoxText}>{activeStage.tip}</Text>
+                <View style={s.tipBox}>
+                  <Ionicons name="flash" size={16} color={colors.gold} />
+                  <Text style={s.tipBoxText}>{activeStage.tip}</Text>
                 </View>
 
-                {/* AI Hint */}
                 {(aiHint || hintLoading) && (
-                  <View style={styles.aiBox}>
+                  <View style={s.aiBox}>
                     <LinearGradient
-                      colors={[`${Colors.blue}18`, `${Colors.purple}10`]}
+                      colors={[`${colors.blue}18`, `${colors.purple}10`]}
                       style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
                     />
-                    <View style={styles.aiBadgeRow}>
-                      <View style={styles.aiBadge}>
-                        <Ionicons name="hardware-chip-outline" size={12} color={Colors.blueLight} />
-                        <Text style={styles.aiBadgeText}>نطق AI</Text>
+                    <View style={s.aiBadgeRow}>
+                      <View style={s.aiBadge}>
+                        <Ionicons name="hardware-chip-outline" size={12} color={colors.blueLight} />
+                        <Text style={s.aiBadgeText}>نطق AI</Text>
                       </View>
                     </View>
                     {hintLoading ? (
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 }}>
-                        <ActivityIndicator size="small" color={Colors.blue} />
-                        <Text style={styles.aiLoading}>يفكر...</Text>
+                        <ActivityIndicator size="small" color={colors.blue} />
+                        <Text style={s.aiLoading}>{isRTL ? "يفكر..." : "Thinking..."}</Text>
                       </View>
                     ) : (
-                      <Text style={styles.aiText}>{aiHint}</Text>
+                      <Text style={s.aiText}>{aiHint}</Text>
                     )}
                   </View>
                 )}
 
-                {/* Action */}
-                <View style={styles.sheetActions}>
+                <View style={s.sheetActions}>
                   <Pressable
                     onPress={completedStages.includes(activeStage.id) ? () => setActiveStage(null) : finishStage}
                     disabled={stageLoading}
-                    style={({ pressed }) => [styles.mainBtn, pressed && { opacity: 0.85 }]}
+                    style={({ pressed }) => [s.mainBtn, pressed && { opacity: 0.85 }]}
                   >
                     <LinearGradient
-                      colors={completedStages.includes(activeStage.id) ? [Colors.success, "#059669"] : [Colors.blue, Colors.purple]}
+                      colors={completedStages.includes(activeStage.id) ? [colors.success, "#059669"] : [colors.blue, colors.purple]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
-                      style={styles.mainBtnGrad}
+                      style={s.mainBtnGrad}
                     >
                       {stageLoading ? (
                         <ActivityIndicator color="#fff" />
                       ) : completedStages.includes(activeStage.id) ? (
-                        <><Ionicons name="checkmark-circle" size={20} color="#fff" /><Text style={styles.mainBtnText}>مكتملة ✓</Text></>
+                        <>
+                          <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                          <Text style={s.mainBtnText}>{isRTL ? "مكتملة" : "Completed"}</Text>
+                        </>
                       ) : (
-                        <><Ionicons name="play-circle" size={20} color="#fff" /><Text style={styles.mainBtnText}>ابدأ المرحلة</Text></>
+                        <>
+                          <Ionicons name="play-circle" size={20} color="#fff" />
+                          <Text style={s.mainBtnText}>{isRTL ? "ابدأ المرحلة" : "Start Stage"}</Text>
+                        </>
                       )}
                     </LinearGradient>
                   </Pressable>
-                  <Pressable onPress={() => setActiveStage(null)} style={styles.cancelBtn}>
-                    <Text style={styles.cancelBtnText}>لاحقاً</Text>
+                  <Pressable onPress={() => setActiveStage(null)} style={s.cancelBtn}>
+                    <Text style={s.cancelBtnText}>{isRTL ? "لاحقاً" : "Later"}</Text>
                   </Pressable>
                 </View>
               </ScrollView>
@@ -313,21 +373,32 @@ export default function HomeScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Voice Chat Modal */}
+      {voiceOpen && (
+        <VoiceChatModal
+          onClose={() => setVoiceOpen(false)}
+          colors={colors}
+          isDark={isDark}
+          isRTL={isRTL}
+          language={language}
+        />
+      )}
     </GridBackground>
   );
 }
 
-function SheetStat({ icon, label, color }: { icon: any; label: string; color: string }) {
-  return (
-    <View style={styles.sheetStatItem}>
-      <Ionicons name={icon} size={18} color={color} />
-      <Text style={[styles.sheetStatLabel, { color }]}>{label}</Text>
-    </View>
-  );
-}
-
-function TimelineRow({ stage, isCompleted, isUnlocked, isActive, isLast, onPress }: {
-  stage: Stage; isCompleted: boolean; isUnlocked: boolean; isActive: boolean; isLast: boolean; onPress: () => void;
+function TimelineRow({ stage, isCompleted, isUnlocked, isActive, isLast, isRTL, isDark, colors, language, onPress }: {
+  stage: Stage;
+  isCompleted: boolean;
+  isUnlocked: boolean;
+  isActive: boolean;
+  isLast: boolean;
+  isRTL: boolean;
+  isDark: boolean;
+  colors: any;
+  language: string;
+  onPress: () => void;
 }) {
   const pulse = useSharedValue(1);
   const glow = useSharedValue(0);
@@ -335,90 +406,132 @@ function TimelineRow({ stage, isCompleted, isUnlocked, isActive, isLast, onPress
   useEffect(() => {
     if (isActive) {
       pulse.value = withRepeat(
-        withSequence(withTiming(1.08, { duration: 800, easing: Easing.inOut(Easing.sin) }), withTiming(0.94, { duration: 800, easing: Easing.inOut(Easing.sin) })),
-        -1, true
+        withSequence(
+          withTiming(1.1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+          withTiming(0.92, { duration: 900, easing: Easing.inOut(Easing.sin) })
+        ),
+        -1,
+        true
       );
-      glow.value = withRepeat(withSequence(withTiming(1, { duration: 1000 }), withTiming(0.3, { duration: 1000 })), -1, true);
+      glow.value = withRepeat(
+        withSequence(withTiming(1, { duration: 1100 }), withTiming(0.2, { duration: 1100 })),
+        -1,
+        true
+      );
     }
   }, [isActive]);
 
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
   const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
 
-  const nodeColor = isCompleted ? Colors.blue : isActive ? Colors.purple : Colors.backgroundCard;
-  const nodeBorder = isCompleted ? Colors.blue : isActive ? Colors.purple : Colors.cardBorder;
+  const nodeColor = isCompleted
+    ? stage.color
+    : isActive
+    ? `${stage.color}CC`
+    : isDark
+    ? colors.backgroundCard
+    : colors.backgroundCardBorder;
+  const nodeBorder = isCompleted ? stage.color : isActive ? stage.color : colors.cardBorder;
+
+  const s = makeStyles(colors, isRTL, isDark);
 
   return (
-    <View style={[styles.tlRow, isLast && { marginBottom: 0 }]}>
-      {/* Node column */}
-      <View style={styles.tlNodeCol}>
+    <View style={[s.tlRow, isLast && { marginBottom: 0 }, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+      <View style={s.tlNodeCol}>
         {isActive && (
-          <Animated.View style={[styles.tlGlow, glowStyle]}>
-            <LinearGradient colors={[Colors.purple, Colors.blue]} style={StyleSheet.absoluteFill} />
-          </Animated.View>
+          <Animated.View style={[s.tlGlow, glowStyle, { backgroundColor: `${stage.color}40` }]} />
         )}
         <Animated.View style={pulseStyle}>
           <Pressable
             onPress={onPress}
-            style={[styles.tlNode, { backgroundColor: nodeColor, borderColor: nodeBorder }]}
+            style={[s.tlNode, { backgroundColor: nodeColor, borderColor: nodeBorder }]}
           >
             {isCompleted ? (
               <Ionicons name="checkmark" size={22} color="#fff" />
             ) : isUnlocked ? (
-              <Ionicons name={stage.icon as any} size={20} color={isActive ? "#fff" : Colors.textMuted} />
+              <Ionicons name={stage.icon as any} size={20} color={isActive ? "#fff" : colors.textMuted} />
             ) : (
-              <Ionicons name="lock-closed" size={18} color={Colors.textMuted} />
+              <Ionicons name="lock-closed" size={18} color={colors.textMuted} />
             )}
           </Pressable>
         </Animated.View>
       </View>
 
-      {/* Info card */}
       <Pressable
         onPress={onPress}
-        style={[
-          styles.tlCard,
-          isCompleted && styles.tlCardCompleted,
-          isActive && styles.tlCardActive,
-          !isUnlocked && styles.tlCardLocked,
+        style={({ pressed }) => [
+          s.tlCard,
+          isCompleted && { borderColor: `${stage.color}35` },
+          isActive && { borderColor: `${stage.color}55` },
+          !isUnlocked && s.tlCardLocked,
+          pressed && isUnlocked && { opacity: 0.88 },
         ]}
       >
         {isActive && (
           <LinearGradient
-            colors={[`${Colors.purple}18`, `${Colors.blue}10`]}
+            colors={[`${stage.color}18`, `${stage.color}06`]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[StyleSheet.absoluteFill, { borderRadius: 16 }]}
+            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
           />
         )}
-        <View style={styles.tlCardContent}>
-          <View style={styles.tlCardTop}>
+        {isCompleted && (
+          <LinearGradient
+            colors={[`${stage.color}10`, `${stage.color}04`]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+          />
+        )}
+
+        {/* Color accent bar */}
+        <View style={[
+          s.tlAccentBar,
+          { backgroundColor: stage.color, opacity: isUnlocked ? 1 : 0.3 },
+          isRTL ? { borderTopRightRadius: 4, borderBottomRightRadius: 4, right: 0 } : { borderTopLeftRadius: 4, borderBottomLeftRadius: 4, left: 0 },
+        ]} />
+
+        <View style={[s.tlCardContent, { paddingRight: isRTL ? 14 : 20, paddingLeft: isRTL ? 20 : 14 }]}>
+          <View style={[s.tlCardTop, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
             {isActive && (
-              <View style={styles.currentBadge}>
-                <Text style={styles.currentBadgeText}>الحالية</Text>
+              <View style={[s.currentBadge, { backgroundColor: `${stage.color}25`, borderColor: `${stage.color}50` }]}>
+                <Text style={[s.currentBadgeText, { color: stage.color }]}>
+                  {language === "ar" ? "الحالية" : "Current"}
+                </Text>
               </View>
             )}
             {isCompleted && (
-              <View style={styles.doneBadge}>
-                <Text style={styles.doneBadgeText}>مكتملة</Text>
+              <View style={s.doneBadge}>
+                <Ionicons name="checkmark-circle" size={12} color={stage.color} />
+                <Text style={[s.doneBadgeText, { color: stage.color }]}>
+                  {language === "ar" ? "مكتملة" : "Done"}
+                </Text>
               </View>
             )}
           </View>
-          <Text style={[styles.tlCardTitle, !isUnlocked && { color: Colors.textMuted }]} numberOfLines={1}>
-            {stage.title}
+          <Text
+            style={[s.tlCardTitle, { textAlign: isRTL ? "right" : "left" }, !isUnlocked && { color: colors.textMuted }]}
+            numberOfLines={1}
+          >
+            {language === "ar" ? stage.title : stage.titleEn}
           </Text>
-          <Text style={[styles.tlCardDesc, !isUnlocked && { color: Colors.textMuted }]} numberOfLines={1}>
-            {stage.desc}
+          <Text
+            style={[s.tlCardDesc, { textAlign: isRTL ? "right" : "left" }, !isUnlocked && { color: colors.textMuted }]}
+            numberOfLines={1}
+          >
+            {language === "ar" ? stage.desc : stage.descEn}
           </Text>
-          <View style={styles.tlCardMeta}>
-            <View style={styles.tlMetaItem}>
-              <Ionicons name="time-outline" size={11} color={isUnlocked ? Colors.textSecondary : Colors.textMuted} />
-              <Text style={[styles.tlMetaText, !isUnlocked && { color: Colors.textMuted }]}>{stage.duration}</Text>
+          <View style={[s.tlCardMeta, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+            <View style={s.tlMetaItem}>
+              <Ionicons name="time-outline" size={11} color={isUnlocked ? colors.textSecondary : colors.textMuted} />
+              <Text style={[s.tlMetaText, !isUnlocked && { color: colors.textMuted }]}>
+                {language === "ar" ? stage.duration : stage.durationEn}
+              </Text>
             </View>
-            <View style={styles.tlMetaDot} />
-            <View style={styles.tlMetaItem}>
-              <Ionicons name="star" size={11} color={isUnlocked ? Colors.gold : Colors.textMuted} />
-              <Text style={[styles.tlXpText, !isUnlocked && { color: Colors.textMuted }]}>+{stage.xp}</Text>
+            <View style={s.tlMetaDot} />
+            <View style={s.tlMetaItem}>
+              <Ionicons name="star" size={11} color={isUnlocked ? colors.gold : colors.textMuted} />
+              <Text style={[s.tlXpText, !isUnlocked && { color: colors.textMuted }]}>+{stage.xp}</Text>
             </View>
           </View>
         </View>
@@ -427,102 +540,402 @@ function TimelineRow({ stage, isCompleted, isUnlocked, isActive, isLast, onPress
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 16 },
-  headerLeft: {},
-  headerCenter: { alignItems: "center" },
-  headerRight: {},
-  appName: { fontSize: 22, fontFamily: "Cairo_700Bold", color: Colors.text, letterSpacing: 1 },
-  streakBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F9731615", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: "#F9731630" },
-  streakNum: { fontSize: 14, fontFamily: "Cairo_700Bold", color: "#F97316" },
-  pointsBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${Colors.gold}15`, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: `${Colors.gold}30` },
-  pointsNum: { fontSize: 14, fontFamily: "Cairo_700Bold", color: Colors.gold },
+function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
+  onClose: () => void;
+  colors: any;
+  isDark: boolean;
+  isRTL: boolean;
+  language: string;
+}) {
+  const [phase, setPhase] = useState<"idle" | "listening" | "processing" | "done">("idle");
+  const [transcript, setTranscript] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [nativeInput, setNativeInput] = useState("");
+  const recognitionRef = useRef<any>(null);
 
-  greetingRow: { paddingHorizontal: 20, marginBottom: 18, gap: 2 },
-  greetingText: { fontSize: 22, fontFamily: "Cairo_700Bold", color: Colors.text, textAlign: "right" },
-  greetingSubtext: { fontSize: 13, fontFamily: "Cairo_400Regular", color: Colors.textSecondary, textAlign: "right" },
+  const ring1 = useSharedValue(1);
+  const ring2 = useSharedValue(1);
+  const ring3 = useSharedValue(1);
 
-  goalCard: { marginHorizontal: 20, marginBottom: 18, borderRadius: 20, borderWidth: 1.5, borderColor: `${Colors.blue}25`, overflow: "hidden" },
-  goalInner: { padding: 18, gap: 12 },
-  goalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  goalTitle: { fontSize: 15, fontFamily: "Cairo_700Bold", color: Colors.text, textAlign: "right" },
-  goalSub: { fontSize: 12, fontFamily: "Cairo_400Regular", color: Colors.textSecondary, textAlign: "right" },
-  goalPct: { fontSize: 32, fontFamily: "Cairo_700Bold", color: Colors.blueLight },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.backgroundCardBorder, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 4 },
-  goalDots: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
-  goalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.backgroundCardBorder, borderWidth: 1, borderColor: Colors.cardBorder },
-  goalDotFilled: { backgroundColor: Colors.blue, borderColor: Colors.blue },
+  useEffect(() => {
+    if (phase === "listening") {
+      ring1.value = withRepeat(withSequence(withTiming(1.4, { duration: 600 }), withTiming(1, { duration: 600 })), -1, false);
+      ring2.value = withRepeat(withSequence(withTiming(1, { duration: 300 }), withTiming(1.6, { duration: 700 }), withTiming(1, { duration: 600 })), -1, false);
+      ring3.value = withRepeat(withSequence(withTiming(1, { duration: 600 }), withTiming(1.8, { duration: 800 }), withTiming(1, { duration: 600 })), -1, false);
+    } else {
+      ring1.value = withTiming(1, { duration: 300 });
+      ring2.value = withTiming(1, { duration: 300 });
+      ring3.value = withTiming(1, { duration: 300 });
+    }
+  }, [phase]);
 
-  wordCard: { marginHorizontal: 20, marginBottom: 18, padding: 16, borderRadius: 18, backgroundColor: Colors.backgroundCard, borderWidth: 1.5, borderColor: Colors.cardBorder, gap: 6 },
-  wordTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  wordBadge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${Colors.gold}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100, borderWidth: 1, borderColor: `${Colors.gold}25` },
-  wordBadgeLabel: { fontSize: 11, fontFamily: "Cairo_700Bold", color: Colors.gold },
-  wordPronounce: { fontSize: 12, fontFamily: "Cairo_400Regular", color: Colors.textMuted },
-  wordMain: { fontSize: 28, fontFamily: "Cairo_700Bold", color: Colors.text, textAlign: "right" },
-  wordTr: { fontSize: 15, fontFamily: "Cairo_600SemiBold", color: Colors.blueLight, textAlign: "right" },
-  wordDivider: { height: 1, backgroundColor: Colors.border },
-  wordEx: { fontSize: 13, fontFamily: "Cairo_400Regular", color: Colors.textSecondary, textAlign: "right", lineHeight: 20 },
+  const r1Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring1.value }],
+    opacity: 2 - ring1.value,
+  }));
+  const r2Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring2.value }],
+    opacity: Math.max(0, 2 - ring2.value),
+  }));
+  const r3Style = useAnimatedStyle(() => ({
+    transform: [{ scale: ring3.value }],
+    opacity: Math.max(0, 2 - ring3.value),
+  }));
 
-  pathSection: { paddingHorizontal: 20 },
-  pathHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
-  pathTitle: { fontSize: 20, fontFamily: "Cairo_700Bold", color: Colors.text },
-  pathProgress: { fontSize: 13, fontFamily: "Cairo_600SemiBold", color: Colors.textSecondary, backgroundColor: Colors.backgroundCard, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: Colors.cardBorder },
+  async function sendToAI(text: string) {
+    setPhase("processing");
+    setErrorMsg("");
+    try {
+      const baseUrl = getApiUrl();
+      const response = await fetch(`${baseUrl}api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({ messages: [{ role: "user", content: text }], mode: "casual" }),
+      });
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let full = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.content) {
+              full += parsed.content;
+              setAiResponse(full);
+            }
+          } catch {}
+        }
+      }
+      setPhase("done");
+    } catch {
+      setErrorMsg(language === "ar" ? "تعذر الاتصال. حاول مرة أخرى." : "Connection failed. Try again.");
+      setPhase("idle");
+    }
+  }
 
-  timeline: { position: "relative", gap: 0 },
-  timelineLine: { position: "absolute", left: 28, top: 28, bottom: 28, width: 2, overflow: "hidden" },
+  function startListening() {
+    if (Platform.OS === "web") {
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SR) {
+        setPhase("listening");
+        setTranscript("");
+        setAiResponse("");
+        setErrorMsg("");
+        const rec = new SR();
+        recognitionRef.current = rec;
+        rec.lang = language === "ar" ? "ar-SA" : "en-US";
+        rec.continuous = false;
+        rec.interimResults = true;
+        rec.onresult = (event: any) => {
+          const t = Array.from(event.results)
+            .map((r: any) => r[0].transcript)
+            .join("");
+          setTranscript(t);
+          if (event.results[event.results.length - 1].isFinal) {
+            rec.stop();
+            sendToAI(t);
+          }
+        };
+        rec.onerror = () => {
+          setErrorMsg(language === "ar" ? "تعذر الاستماع. تحقق من إذن الميكروفون." : "Mic access denied.");
+          setPhase("idle");
+        };
+        rec.onend = () => {
+          if (phase === "listening") setPhase("idle");
+        };
+        rec.start();
+      } else {
+        setErrorMsg(language === "ar" ? "المتصفح لا يدعم التعرف على الصوت" : "Browser doesn't support voice recognition");
+      }
+    }
+  }
 
-  tlRow: { flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 14 },
-  tlNodeCol: { width: 58, alignItems: "center", justifyContent: "center", position: "relative" },
-  tlGlow: { position: "absolute", width: 72, height: 72, borderRadius: 36, left: -7, top: -7, opacity: 0.4 },
-  tlNode: { width: 58, height: 58, borderRadius: 29, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setPhase("idle");
+  }
 
-  tlCard: { flex: 1, borderRadius: 16, borderWidth: 1.5, borderColor: Colors.cardBorder, backgroundColor: Colors.backgroundCard, overflow: "hidden" },
-  tlCardCompleted: { borderColor: `${Colors.blue}40` },
-  tlCardActive: { borderColor: `${Colors.purple}60` },
-  tlCardLocked: { opacity: 0.5 },
-  tlCardContent: { padding: 14, gap: 4 },
-  tlCardTop: { flexDirection: "row", justifyContent: "flex-end", minHeight: 20 },
-  currentBadge: { backgroundColor: `${Colors.purple}20`, borderWidth: 1, borderColor: `${Colors.purple}50`, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 },
-  currentBadgeText: { fontSize: 10, fontFamily: "Cairo_700Bold", color: Colors.purpleLight },
-  doneBadge: { backgroundColor: `${Colors.blue}20`, borderWidth: 1, borderColor: `${Colors.blue}40`, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 100 },
-  doneBadgeText: { fontSize: 10, fontFamily: "Cairo_700Bold", color: Colors.blueLight },
-  tlCardTitle: { fontSize: 15, fontFamily: "Cairo_700Bold", color: Colors.text, textAlign: "right" },
-  tlCardDesc: { fontSize: 12, fontFamily: "Cairo_400Regular", color: Colors.textSecondary, textAlign: "right" },
-  tlCardMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4, justifyContent: "flex-end" },
-  tlMetaItem: { flexDirection: "row", alignItems: "center", gap: 3 },
-  tlMetaText: { fontSize: 11, fontFamily: "Cairo_400Regular", color: Colors.textSecondary },
-  tlXpText: { fontSize: 11, fontFamily: "Cairo_600SemiBold", color: Colors.gold },
-  tlMetaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: Colors.textMuted },
+  function handleNativeSend() {
+    const t = nativeInput.trim();
+    if (!t) return;
+    setTranscript(t);
+    setNativeInput("");
+    sendToAI(t);
+  }
 
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: Colors.backgroundSecondary, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1, borderColor: Colors.cardBorder, maxHeight: "92%", overflow: "hidden" },
-  sheetHandle: { width: 40, height: 4, backgroundColor: Colors.cardBorder, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 4 },
-  sheetHero: { alignItems: "center", padding: 24, gap: 8 },
-  sheetIconBg: { width: 80, height: 80, borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: `${Colors.blue}30` },
-  sheetTitle: { fontSize: 22, fontFamily: "Cairo_700Bold", color: Colors.text, textAlign: "center" },
-  sheetDesc: { fontSize: 14, fontFamily: "Cairo_400Regular", color: Colors.textSecondary, textAlign: "center" },
-  sheetStats: { flexDirection: "row", alignItems: "center", marginHorizontal: 20, backgroundColor: Colors.backgroundCard, borderRadius: 16, borderWidth: 1, borderColor: Colors.cardBorder, paddingVertical: 16 },
-  sheetStatItem: { flex: 1, alignItems: "center", gap: 4 },
-  sheetStatLabel: { fontSize: 13, fontFamily: "Cairo_600SemiBold" },
-  sheetStatDivider: { width: 1, height: 28, backgroundColor: Colors.cardBorder },
-  sheetSection: { padding: 20, gap: 12 },
-  sheetSectionTitle: { fontSize: 15, fontFamily: "Cairo_700Bold", color: Colors.text, textAlign: "right" },
-  skillsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" },
-  skillPill: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${Colors.success}12`, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1, borderColor: `${Colors.success}30` },
-  skillPillText: { fontSize: 12, fontFamily: "Cairo_600SemiBold", color: Colors.success },
-  tipBox: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginHorizontal: 20, marginBottom: 12, backgroundColor: `${Colors.gold}10`, borderRadius: 14, borderWidth: 1, borderColor: `${Colors.gold}20`, padding: 14 },
-  tipBoxText: { flex: 1, fontSize: 13, fontFamily: "Cairo_400Regular", color: Colors.text, textAlign: "right", lineHeight: 22 },
-  aiBox: { marginHorizontal: 20, marginBottom: 12, borderRadius: 16, borderWidth: 1, borderColor: `${Colors.blue}30`, padding: 14, gap: 4, overflow: "hidden" },
-  aiBadgeRow: { flexDirection: "row", justifyContent: "flex-end" },
-  aiBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${Colors.blue}15`, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 100, borderWidth: 1, borderColor: `${Colors.blue}25` },
-  aiBadgeText: { fontSize: 10, fontFamily: "Cairo_700Bold", color: Colors.blueLight },
-  aiLoading: { fontSize: 13, fontFamily: "Cairo_400Regular", color: Colors.textMuted },
-  aiText: { fontSize: 13, fontFamily: "Cairo_400Regular", color: Colors.text, textAlign: "right", lineHeight: 22 },
-  sheetActions: { padding: 20, gap: 10, paddingBottom: 36 },
-  mainBtn: { borderRadius: 18, overflow: "hidden" },
-  mainBtnGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 17, borderRadius: 18 },
-  mainBtnText: { fontSize: 17, fontFamily: "Cairo_700Bold", color: "#fff" },
-  cancelBtn: { alignItems: "center", paddingVertical: 12 },
-  cancelBtnText: { fontSize: 14, fontFamily: "Cairo_400Regular", color: Colors.textSecondary },
+  function reset() {
+    setPhase("idle");
+    setTranscript("");
+    setAiResponse("");
+    setErrorMsg("");
+  }
+
+  const micColor = phase === "listening" ? "#EF4444" : colors.purple;
+  const sheetBg = isDark ? colors.backgroundSecondary : colors.backgroundCard;
+
+  return (
+    <Modal animationType="slide" transparent visible onRequestClose={onClose}>
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay, justifyContent: "flex-end" }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[vmStyles.sheet, { backgroundColor: sheetBg, borderTopColor: colors.cardBorder }]}>
+          <View style={[vmStyles.handle, { backgroundColor: colors.cardBorder }]} />
+
+          <View style={vmStyles.headerRow}>
+            <Pressable onPress={onClose} style={vmStyles.closeBtn}>
+              <Ionicons name="close" size={22} color={colors.textMuted} />
+            </Pressable>
+            <View style={vmStyles.aiBadge}>
+              <Ionicons name="hardware-chip-outline" size={13} color={colors.blueLight} />
+              <Text style={[vmStyles.aiBadgeText, { color: colors.blueLight }]}>
+                {language === "ar" ? "نطق AI - المحادثة الصوتية" : "Nutq AI – Voice Chat"}
+              </Text>
+            </View>
+            <View style={{ width: 34 }} />
+          </View>
+
+          <View style={vmStyles.micArea}>
+            {phase === "listening" && (
+              <>
+                <Animated.View style={[vmStyles.ring, { borderColor: `${micColor}30` }, r3Style]} />
+                <Animated.View style={[vmStyles.ring, { borderColor: `${micColor}50`, width: 140, height: 140 }, r2Style]} />
+                <Animated.View style={[vmStyles.ring, { borderColor: `${micColor}70`, width: 110, height: 110 }, r1Style]} />
+              </>
+            )}
+            <Pressable
+              onPress={phase === "idle" || phase === "done" ? startListening : stopListening}
+              disabled={phase === "processing"}
+              style={({ pressed }) => [vmStyles.micBtn, { backgroundColor: micColor }, pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] }]}
+            >
+              {phase === "processing" ? (
+                <ActivityIndicator color="#fff" size="large" />
+              ) : (
+                <Ionicons name={phase === "listening" ? "stop" : "mic"} size={36} color="#fff" />
+              )}
+            </Pressable>
+          </View>
+
+          <Text style={[vmStyles.phaseLabel, { color: colors.textSecondary }]}>
+            {phase === "idle" || phase === "done"
+              ? language === "ar" ? "اضغط للتحدث" : "Tap to speak"
+              : phase === "listening"
+              ? language === "ar" ? "يستمع... اضغط للإيقاف" : "Listening... tap to stop"
+              : language === "ar" ? "يفكر..." : "Thinking..."}
+          </Text>
+
+          {transcript !== "" && (
+            <View style={[vmStyles.transcriptBox, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
+              <Text style={[vmStyles.transcriptLabel, { color: colors.textMuted }]}>
+                {language === "ar" ? "قلت:" : "You said:"}
+              </Text>
+              <Text style={[vmStyles.transcriptText, { color: colors.text, textAlign: isRTL ? "right" : "left" }]}>
+                {transcript}
+              </Text>
+            </View>
+          )}
+
+          {aiResponse !== "" && (
+            <View style={[vmStyles.responseBox, { borderColor: `${colors.blue}30` }]}>
+              <LinearGradient
+                colors={[`${colors.blue}15`, `${colors.purple}08`]}
+                style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
+              />
+              <Text style={[vmStyles.responseText, { color: colors.text, textAlign: isRTL ? "right" : "left" }]}>
+                {aiResponse}
+              </Text>
+            </View>
+          )}
+
+          {errorMsg !== "" && (
+            <Text style={[vmStyles.errorText, { color: colors.error }]}>{errorMsg}</Text>
+          )}
+
+          {Platform.OS !== "web" && (
+            <View style={[vmStyles.nativeInputRow, { borderColor: colors.border, backgroundColor: colors.backgroundCard }]}>
+              <Pressable
+                onPress={handleNativeSend}
+                disabled={!nativeInput.trim() || phase === "processing"}
+                style={[vmStyles.nativeSendBtn, { backgroundColor: colors.blue }]}
+              >
+                <Ionicons name="send" size={16} color="#fff" />
+              </Pressable>
+              <TextInput
+                style={[vmStyles.nativeInput, { color: colors.text }]}
+                placeholder={language === "ar" ? "اكتب رسالتك..." : "Type your message..."}
+                placeholderTextColor={colors.textMuted}
+                value={nativeInput}
+                onChangeText={setNativeInput}
+                textAlign={isRTL ? "right" : "left"}
+              />
+            </View>
+          )}
+
+          {phase === "done" && (
+            <Pressable onPress={reset} style={[vmStyles.resetBtn, { borderColor: colors.border }]}>
+              <Text style={[vmStyles.resetBtnText, { color: colors.textSecondary }]}>
+                {language === "ar" ? "محادثة جديدة" : "New conversation"}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function makeStyles(colors: any, isRTL: boolean, isDark: boolean) {
+  const glassCard = isDark
+    ? { backgroundColor: "rgba(20,20,42,0.75)", borderColor: "rgba(255,255,255,0.08)" }
+    : { backgroundColor: "rgba(255,255,255,0.82)", borderColor: "rgba(100,100,220,0.15)" };
+
+  return StyleSheet.create({
+    header: { alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 16 },
+    appName: { fontSize: 22, fontFamily: "Cairo_700Bold", color: colors.text, letterSpacing: 1 },
+    streakBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F9731618", paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: "#F9731630" },
+    streakNum: { fontSize: 14, fontFamily: "Cairo_700Bold", color: "#F97316" },
+    pointsBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: `${colors.gold}18`, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, borderWidth: 1, borderColor: `${colors.gold}30` },
+    pointsNum: { fontSize: 14, fontFamily: "Cairo_700Bold", color: colors.gold },
+
+    greetingRow: { paddingHorizontal: 20, marginBottom: 16, gap: 2 },
+    greetingText: { fontSize: 22, fontFamily: "Cairo_700Bold", color: colors.text, textAlign: isRTL ? "right" : "left" },
+    greetingSubtext: { fontSize: 13, fontFamily: "Cairo_400Regular", color: colors.textSecondary, textAlign: isRTL ? "right" : "left" },
+
+    goalCard: { marginHorizontal: 20, marginBottom: 16, borderRadius: 20, borderWidth: 1.5, borderColor: `${colors.blue}25`, overflow: "hidden", ...glassCard },
+    goalInner: { padding: 18, gap: 12 },
+    goalHeader: { alignItems: "center", justifyContent: "space-between" },
+    goalTitle: { fontSize: 15, fontFamily: "Cairo_700Bold", color: colors.text, textAlign: isRTL ? "right" : "left" },
+    goalSub: { fontSize: 12, fontFamily: "Cairo_400Regular", color: colors.textSecondary, textAlign: isRTL ? "right" : "left" },
+    goalPct: { fontSize: 32, fontFamily: "Cairo_700Bold", color: colors.blueLight },
+    progressTrack: { height: 8, borderRadius: 4, backgroundColor: colors.backgroundCardBorder, overflow: "hidden" },
+    progressFill: { height: "100%", borderRadius: 4 },
+    goalDots: { gap: 8, justifyContent: isRTL ? "flex-end" : "flex-start" },
+    goalDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.backgroundCardBorder, borderWidth: 1, borderColor: colors.cardBorder },
+    goalDotFilled: { backgroundColor: colors.blue, borderColor: colors.blue },
+
+    wordCard: { marginHorizontal: 20, marginBottom: 16, padding: 16, borderRadius: 18, borderWidth: 1.5, borderColor: `${colors.gold}20`, gap: 6, overflow: "hidden", ...glassCard },
+    wordTop: { justifyContent: "space-between", alignItems: "center" },
+    wordBadge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${colors.gold}15`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100, borderWidth: 1, borderColor: `${colors.gold}25` },
+    wordBadgeLabel: { fontSize: 11, fontFamily: "Cairo_700Bold", color: colors.gold },
+    wordPronounce: { fontSize: 12, fontFamily: "Cairo_400Regular", color: colors.textMuted },
+    wordMain: { fontSize: 28, fontFamily: "Cairo_700Bold", color: colors.text, textAlign: isRTL ? "right" : "left" },
+    wordTr: { fontSize: 15, fontFamily: "Cairo_600SemiBold", color: colors.blueLight, textAlign: isRTL ? "right" : "left" },
+    wordDivider: { height: 1, backgroundColor: colors.border },
+    wordEx: { fontSize: 13, fontFamily: "Cairo_400Regular", color: colors.textSecondary, textAlign: isRTL ? "right" : "left", lineHeight: 20 },
+
+    pathSection: { paddingHorizontal: 20 },
+    pathHeaderRow: { alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+    pathTitle: { fontSize: 20, fontFamily: "Cairo_700Bold", color: colors.text },
+    pathProgressBadge: { backgroundColor: colors.backgroundCard, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: colors.cardBorder },
+    pathProgress: { fontSize: 13, fontFamily: "Cairo_600SemiBold", color: colors.textSecondary },
+
+    timeline: { position: "relative", gap: 0 },
+    timelineLine: { position: "absolute", top: 28, bottom: 28, width: 2, overflow: "hidden" },
+
+    tlRow: { alignItems: "center", gap: 12, marginBottom: 14 },
+    tlNodeCol: { width: 58, alignItems: "center", justifyContent: "center", position: "relative" },
+    tlGlow: { position: "absolute", width: 76, height: 76, borderRadius: 38, left: -9, top: -9, opacity: 0.35 },
+    tlNode: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", borderWidth: 2.5 },
+    tlCard: {
+      flex: 1, borderRadius: 18, borderWidth: 1.5, overflow: "hidden", position: "relative",
+      ...glassCard,
+      ...(isDark ? {} : {
+        shadowColor: "#8888CC",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        elevation: 3,
+      }),
+    },
+    tlCardLocked: { opacity: 0.45 },
+    tlAccentBar: { position: "absolute", top: 14, bottom: 14, width: 4 },
+    tlCardContent: { paddingVertical: 14, gap: 4 },
+    tlCardTop: { gap: 6, marginBottom: 2 },
+    currentBadge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 3, borderRadius: 100, borderWidth: 1 },
+    currentBadgeText: { fontSize: 10, fontFamily: "Cairo_700Bold" },
+    doneBadge: { flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" },
+    doneBadgeText: { fontSize: 10, fontFamily: "Cairo_700Bold" },
+    tlCardTitle: { fontSize: 15, fontFamily: "Cairo_700Bold", color: colors.text },
+    tlCardDesc: { fontSize: 12, fontFamily: "Cairo_400Regular", color: colors.textSecondary },
+    tlCardMeta: { alignItems: "center", gap: 6, marginTop: 4 },
+    tlMetaItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+    tlMetaText: { fontSize: 11, fontFamily: "Cairo_400Regular", color: colors.textSecondary },
+    tlXpText: { fontSize: 11, fontFamily: "Cairo_600SemiBold", color: colors.gold },
+    tlMetaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.textMuted },
+
+    voiceFab: {
+      position: "absolute",
+      right: 20,
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      overflow: "visible",
+    },
+    voiceFabGrad: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center" },
+    voiceFabBadge: { position: "absolute", top: -2, right: -2, width: 18, height: 18, borderRadius: 9, backgroundColor: colors.blue, alignItems: "center", justifyContent: "center" },
+
+    overlay: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+    sheet: { backgroundColor: isDark ? colors.backgroundSecondary : colors.backgroundCard, borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1, borderTopColor: colors.cardBorder, maxHeight: "88%", paddingHorizontal: 20, paddingBottom: 40 },
+    sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: colors.cardBorder, alignSelf: "center", marginTop: 12, marginBottom: 20 },
+    sheetHero: { alignItems: "center", gap: 10, marginBottom: 20 },
+    sheetIconBg: { width: 88, height: 88, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+    sheetTitle: { fontSize: 22, fontFamily: "Cairo_700Bold", color: colors.text, textAlign: "center" },
+    sheetDesc: { fontSize: 14, fontFamily: "Cairo_400Regular", color: colors.textSecondary, textAlign: "center" },
+    sheetStats: { flexDirection: "row", alignItems: "center", justifyContent: "space-around", paddingVertical: 16, marginBottom: 16, borderRadius: 16, backgroundColor: isDark ? colors.backgroundCard : `${colors.blue}08`, borderWidth: 1, borderColor: colors.border },
+    sheetStatItem: { alignItems: "center", gap: 6 },
+    sheetStatLabel: { fontSize: 13, fontFamily: "Cairo_600SemiBold" },
+    sheetStatDivider: { width: 1, height: 32, backgroundColor: colors.border },
+    sheetSection: { marginBottom: 16, gap: 10 },
+    sheetSectionTitle: { fontSize: 15, fontFamily: "Cairo_700Bold", color: colors.text, textAlign: isRTL ? "right" : "left" },
+    skillsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: isRTL ? "flex-end" : "flex-start" },
+    skillPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1 },
+    skillPillText: { fontSize: 12, fontFamily: "Cairo_600SemiBold" },
+    tipBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, marginBottom: 14, backgroundColor: `${colors.gold}10`, borderRadius: 14, borderWidth: 1, borderColor: `${colors.gold}25` },
+    tipBoxText: { flex: 1, fontSize: 13, fontFamily: "Cairo_400Regular", color: colors.text, lineHeight: 20, textAlign: isRTL ? "right" : "left" },
+    aiBox: { padding: 14, borderRadius: 16, marginBottom: 16, overflow: "hidden", borderWidth: 1, borderColor: `${colors.blue}25` },
+    aiBadgeRow: { flexDirection: "row", justifyContent: isRTL ? "flex-end" : "flex-start", marginBottom: 8 },
+    aiBadge: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${colors.blue}20`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 100 },
+    aiBadgeText: { fontSize: 11, fontFamily: "Cairo_700Bold", color: colors.blueLight },
+    aiLoading: { fontSize: 13, fontFamily: "Cairo_400Regular", color: colors.textSecondary },
+    aiText: { fontSize: 14, fontFamily: "Cairo_400Regular", color: colors.text, lineHeight: 22, textAlign: isRTL ? "right" : "left" },
+    sheetActions: { gap: 10, marginTop: 4 },
+    mainBtn: { borderRadius: 16, overflow: "hidden" },
+    mainBtnGrad: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 16, borderRadius: 16 },
+    mainBtnText: { fontSize: 16, fontFamily: "Cairo_700Bold", color: "#fff" },
+    cancelBtn: { alignItems: "center", paddingVertical: 14 },
+    cancelBtnText: { fontSize: 14, fontFamily: "Cairo_600SemiBold", color: colors.textMuted },
+  });
+}
+
+const vmStyles = StyleSheet.create({
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, borderTopWidth: 1, paddingHorizontal: 24, paddingBottom: 40, paddingTop: 0 },
+  handle: { width: 40, height: 4, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 16 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  closeBtn: { padding: 4 },
+  aiBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 100, backgroundColor: "rgba(59,130,246,0.15)" },
+  aiBadgeText: { fontSize: 13, fontFamily: "Cairo_600SemiBold" },
+  micArea: { alignItems: "center", justifyContent: "center", height: 190, marginBottom: 8, position: "relative" },
+  ring: { position: "absolute", width: 170, height: 170, borderRadius: 85, borderWidth: 1.5 },
+  micBtn: { width: 84, height: 84, borderRadius: 42, alignItems: "center", justifyContent: "center", zIndex: 10 },
+  phaseLabel: { fontSize: 14, fontFamily: "Cairo_400Regular", textAlign: "center", marginBottom: 16 },
+  transcriptBox: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12, gap: 6 },
+  transcriptLabel: { fontSize: 11, fontFamily: "Cairo_400Regular" },
+  transcriptText: { fontSize: 15, fontFamily: "Cairo_600SemiBold", lineHeight: 22 },
+  responseBox: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12, overflow: "hidden" },
+  responseText: { fontSize: 14, fontFamily: "Cairo_400Regular", lineHeight: 22 },
+  errorText: { fontSize: 13, fontFamily: "Cairo_400Regular", textAlign: "center", marginBottom: 12 },
+  nativeInputRow: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8, marginBottom: 12 },
+  nativeInput: { flex: 1, fontSize: 14, fontFamily: "Cairo_400Regular", paddingVertical: 4 },
+  nativeSendBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  resetBtn: { alignItems: "center", paddingVertical: 12, borderTopWidth: 1, marginTop: 4 },
+  resetBtnText: { fontSize: 14, fontFamily: "Cairo_600SemiBold" },
 });

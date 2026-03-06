@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { Colors } from "@/constants/colors";
+import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
 
@@ -90,8 +91,10 @@ const LEVELS = [
 
 export default function LoyaltyScreen() {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const { points } = useApp();
   const [redeemedRewards, setRedeemedRewards] = useState<string[]>([]);
+  const cardBg = isDark ? colors.backgroundCard : "#FFFFFF";
 
   const topInset = insets.top + (Platform.OS === "web" ? 67 : 0);
 
@@ -124,8 +127,8 @@ export default function LoyaltyScreen() {
         }}
       >
         <View style={styles.pageHeader}>
-          <Text style={styles.pageTitle}>نقاطي</Text>
-          <Text style={styles.pageSubtitle}>اجمع نقاطاً واستبدلها بمكافآت حصرية</Text>
+          <Text style={[styles.pageTitle, { color: colors.text }]}>نقاطي</Text>
+          <Text style={[styles.pageSubtitle, { color: colors.textSecondary }]}>اجمع نقاطاً واستبدلها بمكافآت حصرية</Text>
         </View>
 
         <LinearGradient
@@ -142,9 +145,9 @@ export default function LoyaltyScreen() {
                   {currentLevel.name}
                 </Text>
               </View>
-              <Text style={styles.pointsValue}>{points.toLocaleString()}</Text>
+              <Text style={[styles.pointsValue, { color: colors.text }]}>{points.toLocaleString()}</Text>
             </View>
-            <Text style={styles.pointsLabel}>نقطة مجموعة</Text>
+            <Text style={[styles.pointsLabel, { color: colors.textSecondary }]}>نقطة مجموعة</Text>
 
             {nextLevel && (
               <View style={styles.progressSection}>
@@ -170,7 +173,7 @@ export default function LoyaltyScreen() {
         </LinearGradient>
 
         <View style={styles.levelsSection}>
-          <Text style={styles.sectionTitle}>المستويات</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>المستويات</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
             {LEVELS.map((level) => (
               <View
@@ -190,8 +193,8 @@ export default function LoyaltyScreen() {
         </View>
 
         <View style={styles.rewardsSection}>
-          <Text style={styles.sectionTitle}>المكافآت المتاحة</Text>
-          <Text style={styles.sectionSubtitle}>استبدل نقاطك بمكافآت حصرية من شركاء نطق</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>المكافآت المتاحة</Text>
+          <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>استبدل نقاطك بمكافآت حصرية من شركاء نطق</Text>
 
           <View style={styles.rewardsGrid}>
             {REWARDS.map((reward) => {
@@ -204,6 +207,7 @@ export default function LoyaltyScreen() {
                   onPress={() => !isRedeemed && handleRedeem(reward)}
                   style={({ pressed }) => [
                     styles.rewardCard,
+                    { backgroundColor: cardBg },
                     isRedeemed && styles.rewardCardRedeemed,
                     pressed && canRedeem && { opacity: 0.85 },
                   ]}
@@ -222,8 +226,8 @@ export default function LoyaltyScreen() {
                       </View>
                     </View>
 
-                    <Text style={styles.rewardName}>{reward.name}</Text>
-                    <Text style={styles.rewardDesc}>{reward.description}</Text>
+                    <Text style={[styles.rewardName, { color: colors.text }]}>{reward.name}</Text>
+                    <Text style={[styles.rewardDesc, { color: colors.textSecondary }]}>{reward.description}</Text>
 
                     <View style={styles.rewardFooter}>
                       <Pressable
