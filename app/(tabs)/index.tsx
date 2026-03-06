@@ -26,6 +26,7 @@ import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { fetch as expoFetch } from "expo/fetch";
+import { router } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
@@ -183,6 +184,36 @@ export default function HomeScreen() {
             <Text style={s.wordEx} numberOfLines={2}>{wordOfDay.example}</Text>
           </View>
         )}
+
+        {/* AI Chat Card */}
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/chat"); }}
+          style={({ pressed }) => [s.aiCard, pressed && { opacity: 0.88 }]}
+          testID="home-chat-btn"
+        >
+          <LinearGradient
+            colors={isDark ? [`${colors.blue}28`, `${colors.purple}18`] : [`${colors.blue}18`, `${colors.purple}10`]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+          />
+          <View style={[s.aiCardInner, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <View style={[s.aiCardChevron, { transform: [{ scaleX: isRTL ? 1 : -1 }] }]}>
+              <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+            </View>
+            <View style={s.aiCardText}>
+              <Text style={[s.aiCardTitle, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "المساعد الذكي" : "AI Assistant"}
+              </Text>
+              <Text style={[s.aiCardSub, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "تحدث، اسأل، واحصل على مساعدة فورية" : "Talk, ask, and get help instantly"}
+              </Text>
+            </View>
+            <View style={[s.aiCardIcon, { backgroundColor: `${colors.blue}22`, borderColor: `${colors.blue}40` }]}>
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.blue} />
+            </View>
+          </View>
+        </Pressable>
 
         {/* Learning Path */}
         <View style={s.pathSection}>
@@ -1142,6 +1173,14 @@ function makeStyles(colors: any, isRTL: boolean, isDark: boolean) {
     wordTr: { fontSize: 15, fontFamily: "Cairo_600SemiBold", color: colors.blueLight, textAlign: isRTL ? "right" : "left" },
     wordDivider: { height: 1, backgroundColor: colors.border },
     wordEx: { fontSize: 13, fontFamily: "Cairo_400Regular", color: colors.textSecondary, textAlign: isRTL ? "right" : "left", lineHeight: 20 },
+
+    aiCard: { marginHorizontal: 20, marginBottom: 16, borderRadius: 18, borderWidth: 1.5, borderColor: `${colors.blue}30`, overflow: "hidden", ...glassCard },
+    aiCardInner: { alignItems: "center", paddingVertical: 14, paddingHorizontal: 16, gap: 12 },
+    aiCardIcon: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1 },
+    aiCardText: { flex: 1, gap: 3 },
+    aiCardTitle: { fontSize: 16, fontFamily: "Cairo_700Bold", color: colors.text },
+    aiCardSub: { fontSize: 12, fontFamily: "Cairo_400Regular", color: colors.textSecondary },
+    aiCardChevron: { opacity: 0.5 },
 
     pathSection: { paddingHorizontal: 20 },
     pathHeaderRow: { alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
