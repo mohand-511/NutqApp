@@ -18,6 +18,7 @@ import { Colors } from "@/constants/colors";
 import { shadow } from "@/constants/shadows";
 import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
+import NutqLogo from "@/components/NutqLogo";
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -65,6 +66,9 @@ export default function RegisterScreen() {
 
         <View style={styles.content}>
           <View style={styles.titleBlock}>
+            <View style={{ alignItems: "center", marginBottom: 16 }}>
+              <NutqLogo size="lg" showTagline />
+            </View>
             <Text style={styles.title}>إنشاء حساب جديد</Text>
             <Text style={styles.subtitle}>انضم إلى مجتمع نطق</Text>
           </View>

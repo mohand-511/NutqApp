@@ -60,7 +60,7 @@ const INITIAL_MESSAGES: Message[] = [
 export default function SolifScreen() {
   const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
-  const { addPoints, language } = useApp();
+  const { addPoints, language, userId, profile } = useApp();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState("");
   const [activeMode, setActiveMode] = useState("casual");
@@ -96,7 +96,7 @@ export default function SolifScreen() {
       const response = await fetch(`${baseUrl}api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-        body: JSON.stringify({ messages: chatHistory, mode: activeMode }),
+        body: JSON.stringify({ messages: chatHistory, mode: activeMode, userId, email: profile.email, name: profile.name }),
       });
 
       if (!response.ok) throw new Error("Failed");

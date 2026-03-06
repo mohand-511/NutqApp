@@ -547,12 +547,13 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   isRTL: boolean;
   language: string;
 }) {
-  const [phase, setPhase] = useState<"idle" | "listening" | "processing" | "done">("idle");
+  const [phase, setPhase] = useState<"idle" | "listening" | "processing" | "speaking" | "done">("idle");
   const [transcript, setTranscript] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [nativeInput, setNativeInput] = useState("");
   const recognitionRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const ring1 = useSharedValue(1);
   const ring2 = useSharedValue(1);
@@ -583,6 +584,30 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
     opacity: Math.max(0, 2 - ring3.value),
   }));
 
+  async function speakText(text: string) {
+    if (Platform.OS !== "web") return;
+    try {
+      const baseUrl = getApiUrl();
+      const res = await fetch(`${baseUrl}api/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.slice(0, 400), voice: "shimmer" }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (audioRef.current) { audioRef.current.pause(); URL.revokeObjectURL(audioRef.current.src); }
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      setPhase("speaking");
+      audio.play();
+      audio.onended = () => { setPhase("done"); URL.revokeObjectURL(url); };
+      audio.onerror = () => setPhase("done");
+    } catch {
+      setPhase("done");
+    }
+  }
+
   async function sendToAI(text: string) {
     setPhase("processing");
     setErrorMsg("");
@@ -610,14 +635,11 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
           if (data === "[DONE]") continue;
           try {
             const parsed = JSON.parse(data);
-            if (parsed.content) {
-              full += parsed.content;
-              setAiResponse(full);
-            }
+            if (parsed.content) { full += parsed.content; setAiResponse(full); }
           } catch {}
         }
       }
-      setPhase("done");
+      await speakText(full);
     } catch {
       setErrorMsg(language === "ar" ? "تعذر الاتصال. حاول مرة أخرى." : "Connection failed. Try again.");
       setPhase("idle");
@@ -675,13 +697,15 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   }
 
   function reset() {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    recognitionRef.current?.stop();
     setPhase("idle");
     setTranscript("");
     setAiResponse("");
     setErrorMsg("");
   }
 
-  const micColor = phase === "listening" ? "#EF4444" : colors.purple;
+  const micColor = phase === "listening" ? "#EF4444" : phase === "speaking" ? "#10B981" : colors.purple;
   const sheetBg = isDark ? colors.backgroundSecondary : colors.backgroundCard;
 
   return (
@@ -713,12 +737,14 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
               </>
             )}
             <Pressable
-              onPress={phase === "idle" || phase === "done" ? startListening : stopListening}
+              onPress={phase === "idle" || phase === "done" ? startListening : phase === "speaking" ? reset : stopListening}
               disabled={phase === "processing"}
               style={({ pressed }) => [vmStyles.micBtn, { backgroundColor: micColor }, pressed && { opacity: 0.85, transform: [{ scale: 0.95 }] }]}
             >
               {phase === "processing" ? (
                 <ActivityIndicator color="#fff" size="large" />
+              ) : phase === "speaking" ? (
+                <Ionicons name="volume-high" size={36} color="#fff" />
               ) : (
                 <Ionicons name={phase === "listening" ? "stop" : "mic"} size={36} color="#fff" />
               )}
@@ -730,6 +756,8 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
               ? language === "ar" ? "اضغط للتحدث" : "Tap to speak"
               : phase === "listening"
               ? language === "ar" ? "يستمع... اضغط للإيقاف" : "Listening... tap to stop"
+              : phase === "speaking"
+              ? language === "ar" ? "🔊 يتكلم..." : "🔊 Speaking..."
               : language === "ar" ? "يفكر..." : "Thinking..."}
           </Text>
 

@@ -58,15 +58,42 @@ components/
 - **Direction**: isRTL = language === "ar" — applied to flexDirection, textAlign throughout tabs
 
 ## Key Features
-1. **Authentication**: Email login/register, mock Google/Apple login
+1. **Authentication**: Email login/register with NutqLogo branding on auth screens
 2. **Onboarding**: 3-step goal selection with card-based UI
 3. **Gamified Path**: 8 stages, glassmorphism cards with colored accent bars, animated active node
-4. **Voice Chat FAB**: Floating mic button on home → voice modal with SpeechRecognition (web) + AI streaming
-5. **Solif (سوالف)**: Redesigned AI chat, inverted FlatList, 4 modes, larger message area
+4. **AI Voice Chat (TTS)**: Floating mic button on home → voice modal with Web SpeechRecognition + OpenAI TTS audio playback (shimmer voice) — phases: idle → listening → processing → speaking → done
+5. **Solif (سوالف)**: AI chat (GPT-4o-mini, SSE streaming), 4 modes, chat messages persisted to PostgreSQL
 6. **Loyalty**: Points + 6 Saudi partner rewards, theme-responsive colors
-7. **Profile**: AI coaching, achievements, dark/light theme toggle, AR/EN language toggle
-8. **Dark/Light Mode**: Full theme support via ThemeContext, persisted in AsyncStorage
-9. **Bilingual RTL/LTR**: Language toggle switches text direction across all tab screens
+7. **Profile (redesigned)**: Premium card-based layout with:
+   - Hero card: avatar gradient, name, level badge, XP progress bar
+   - 4 stats grid: points, streak, stages, XP
+   - 3-tab layout: Overview (achievements + AI coaching), Activity log, Settings
+   - Settings: all toggles (dark mode, notifications, daily reminder, sounds, privacy) save to DB
+8. **NutqLogo Branding**: Brand component with "ن" badge, shown on login, register, and profile header
+9. **Dark/Light Mode**: Smooth theme switching with animated transition, full ThemeContext
+10. **Bilingual RTL/LTR**: Complete RTL/LTR for all screens; language toggle persists to DB
+11. **PostgreSQL + Drizzle ORM**: Real database for user profiles, settings, chat history, activity log
+
+## Database Schema (shared/schema.ts)
+- `users`: id, email, name, password, created_at
+- `user_profiles`: userId, points, streak, xp, level, goal, completed_stages
+- `user_settings`: userId, theme, language, notifications_enabled, sound_enabled, daily_reminder, privacy_mode
+- `chat_messages`: userId, role, content, mode, created_at
+- `user_activity`: userId, type, title_ar, title_en, points, icon, color, created_at
+
+## API Endpoints (server/routes.ts)
+- `POST /api/chat` — SSE streaming AI chat (persists to chat_messages)
+- `POST /api/tts` — OpenAI TTS audio synthesis (returns MP3)
+- `POST /api/user/sync` — Sync/create user in DB, return settings+profile
+- `PATCH /api/user/settings` — Update user settings
+- `PATCH /api/user/profile` — Update user profile data
+- `GET /api/user/chat-history` — Fetch chat history
+- `DELETE /api/user/chat-history` — Clear chat history
+- `GET /api/user/activity` — Fetch activity log
+- `POST /api/user/activity` — Log a new activity
+- `POST /api/stage-hint` — AI tip for a stage
+- `POST /api/coaching-tip` — AI coaching message
+- `GET /api/word-of-day` — AI-generated word
 
 ## Workflows
 - `Start Backend`: `npm run server:dev` on port 5000
