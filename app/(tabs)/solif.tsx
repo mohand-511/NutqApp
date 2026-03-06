@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,10 @@ import {
   Pressable,
   TextInput,
   FlatList,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,133 +20,180 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
-  Easing,
 } from "react-native-reanimated";
+import { fetch } from "expo/fetch";
 import { Colors } from "@/constants/colors";
 import { useApp } from "@/context/AppContext";
 import { SaudiAvatar } from "@/components/Avatar";
+import { getApiUrl } from "@/lib/query-client";
+import { GridBackground } from "@/components/GridBackground";
 
 const CONVERSATION_MODES = [
-  { id: "casual", label: "دردشة عادية", icon: "chatbubble-outline" },
-  { id: "science", label: "نقاش علمي", icon: "flask-outline" },
-  { id: "roleplay", label: "لعب أدوار", icon: "people-outline" },
-  { id: "interview", label: "مقابلة عمل", icon: "briefcase-outline" },
+  { id: "casual", label: "دردشة", icon: "chatbubble-outline", color: Colors.blue },
+  { id: "science", label: "علمي", icon: "flask-outline", color: "#06B6D4" },
+  { id: "roleplay", label: "أدوار", icon: "people-outline", color: Colors.purple },
+  { id: "interview", label: "مقابلة", icon: "briefcase-outline", color: Colors.gold },
 ];
-
-const AI_RESPONSES: Record<string, string[]> = {
-  casual: [
-    "أهلاً وسهلاً! كيف حالك اليوم؟ سعيد بمحادثتك.",
-    "ذلك جميل جداً! أخبرني أكثر عن هذا الموضوع.",
-    "وجهة نظر رائعة! أتفق معك تماماً.",
-    "ما شاء الله، لغتك جميلة! استمر في التدريب.",
-  ],
-  science: [
-    "موضوع مثير للاهتمام! من المنظور العلمي، هناك عدة نظريات تدعم هذا.",
-    "دراسات حديثة أثبتت أن هذه الظاهرة ترتبط ارتباطاً وثيقاً بما ذكرته.",
-    "سؤالك يشير إلى فهم عميق! دعني أوضح لك الجانب التقني.",
-  ],
-  roleplay: [
-    "مرحباً بك في المقهى! ماذا تريد أن تطلب؟",
-    "أنا المدير، هلا أخبرتني عن خبرتك في هذا المجال؟",
-    "إنها فرصة رائعة! كيف ستتعامل مع هذا الموقف؟",
-  ],
-  interview: [
-    "شكراً لحضورك! أخبرني عن نفسك وخبراتك.",
-    "سؤال جيد. لماذا تريد العمل في شركتنا؟",
-    "نقطة قوية! كيف تتعامل مع ضغط العمل؟",
-  ],
-};
 
 interface Message {
   id: string;
   text: string;
-  isUser: boolean;
+  role: "user" | "assistant";
   timestamp: number;
 }
+
+let msgCounter = 0;
+function genId(): string {
+  msgCounter++;
+  return `msg-${Date.now()}-${msgCounter}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+const INITIAL_MESSAGES: Message[] = [
+  {
+    id: "welcome",
+    text: "أهلاً وسهلاً! أنا نطق AI، مساعدك الذكي للتعلم والمحادثة. اختر نمط المحادثة الذي يناسبك وابدأ معي!",
+    role: "assistant",
+    timestamp: Date.now(),
+  },
+];
 
 export default function SolifScreen() {
   const insets = useSafeAreaInsets();
   const { addPoints } = useApp();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "0",
-      text: "أهلاً! أنا مساعدك الذكي في نطق. اختر نمط المحادثة وابدأ التحدث!",
-      isUser: false,
-      timestamp: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState("");
   const [activeMode, setActiveMode] = useState("casual");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const flatListRef = useRef<FlatList>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [showTyping, setShowTyping] = useState(false);
+  const inputRef = useRef<TextInput>(null);
 
   const topInset = insets.top + (Platform.OS === "web" ? 67 : 0);
   const botInset = insets.bottom + (Platform.OS === "web" ? 34 : 0);
 
-  async function sendMessage() {
-    if (!inputText.trim()) return;
+  const sendMessage = useCallback(async () => {
+    const text = inputText.trim();
+    if (!text || isStreaming) return;
 
+    const capturedMessages = [...messages];
     const userMsg: Message = {
-      id: Date.now().toString(),
-      text: inputText.trim(),
-      isUser: true,
+      id: genId(),
+      text,
+      role: "user",
       timestamp: Date.now(),
     };
 
     setMessages((prev) => [userMsg, ...prev]);
     setInputText("");
-    setIsTyping(true);
+    setShowTyping(true);
+    setIsStreaming(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    const delay = 1000 + Math.random() * 1000;
-    await new Promise((r) => setTimeout(r, delay));
+    try {
+      const baseUrl = getApiUrl();
+      const chatHistory = [
+        ...capturedMessages
+          .slice()
+          .reverse()
+          .map((m) => ({ role: m.role, content: m.text })),
+        { role: "user" as const, content: text },
+      ];
 
-    const responses = AI_RESPONSES[activeMode] || AI_RESPONSES.casual;
-    const aiResponse = responses[Math.floor(Math.random() * responses.length)];
+      const response = await fetch(`${baseUrl}api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify({ messages: chatHistory, mode: activeMode }),
+      });
 
-    const aiMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      text: aiResponse,
-      isUser: false,
-      timestamp: Date.now(),
-    };
+      if (!response.ok) throw new Error("Failed");
 
-    setIsTyping(false);
-    setIsSpeaking(true);
-    setMessages((prev) => [aiMsg, ...prev]);
-    await addPoints(5);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader");
 
-    setTimeout(() => setIsSpeaking(false), 2500);
-  }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+      let assistantAdded = false;
+      const assistantId = genId();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.content) {
+              fullContent += parsed.content;
+
+              if (!assistantAdded) {
+                setShowTyping(false);
+                setIsSpeaking(true);
+                setMessages((prev) => [
+                  { id: assistantId, text: fullContent, role: "assistant", timestamp: Date.now() },
+                  ...prev,
+                ]);
+                assistantAdded = true;
+              } else {
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  if (updated[0]?.id === assistantId) {
+                    updated[0] = { ...updated[0], text: fullContent };
+                  }
+                  return updated;
+                });
+              }
+            }
+          } catch {}
+        }
+      }
+
+      await addPoints(5);
+      setTimeout(() => setIsSpeaking(false), 2000);
+    } catch (err) {
+      setShowTyping(false);
+      setMessages((prev) => [
+        { id: genId(), text: "عذراً، حدث خطأ. حاول مرة أخرى.", role: "assistant", timestamp: Date.now() },
+        ...prev,
+      ]);
+    } finally {
+      setIsStreaming(false);
+      setShowTyping(false);
+      inputRef.current?.focus();
+    }
+  }, [inputText, isStreaming, messages, activeMode, addPoints]);
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.background }]}>
-      <View style={[styles.header, { paddingTop: topInset + 12 }]}>
-        <LinearGradient
-          colors={["rgba(5,5,8,0.98)", "rgba(5,5,8,0)"]}
-          style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.headerContent}>
-          <View style={styles.headerGlow}>
-            <SaudiAvatar size={80} speaking={isSpeaking} />
-          </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerTitle}>سوالف</Text>
-            <Text style={styles.headerSubtitle}>
-              {isSpeaking ? "يتحدث..." : isTyping ? "يكتب..." : "جاهز للمحادثة"}
-            </Text>
+    <GridBackground style={{ flex: 1 }}>
+      <View style={[styles.header, { paddingTop: topInset + 8 }]}>
+        <View style={styles.avatarRow}>
+          <View style={styles.statusInfo}>
             <View style={styles.statusDot}>
-              <View style={[styles.statusDotInner, { backgroundColor: isSpeaking || isTyping ? Colors.success : Colors.textMuted }]} />
-              <Text style={styles.statusText}>
-                {isSpeaking || isTyping ? "نشط" : "في انتظارك"}
+              <View
+                style={[
+                  styles.statusDotInner,
+                  { backgroundColor: isSpeaking || showTyping ? Colors.success : Colors.textMuted },
+                ]}
+              />
+            </View>
+            <View>
+              <Text style={styles.headerTitle}>سوالف</Text>
+              <Text style={styles.headerSubtitle}>
+                {showTyping ? "يفكر..." : isSpeaking ? "يتحدث..." : "نطق AI جاهز"}
               </Text>
             </View>
           </View>
+          <SaudiAvatar size={68} speaking={isSpeaking || showTyping} />
         </View>
 
-        <View style={styles.modeScroll}>
+        <View style={styles.modeRow}>
           {CONVERSATION_MODES.map((mode) => (
             <Pressable
               key={mode.id}
@@ -156,24 +203,19 @@ export default function SolifScreen() {
               }}
               style={({ pressed }) => [
                 styles.modeChip,
-                activeMode === mode.id && styles.modeChipActive,
-                pressed && { opacity: 0.8 },
+                activeMode === mode.id && { borderColor: mode.color },
+                pressed && { opacity: 0.75 },
               ]}
             >
               {activeMode === mode.id && (
-                <LinearGradient
-                  colors={[Colors.blue, Colors.purple]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
+                <View style={[StyleSheet.absoluteFill, { borderRadius: 100, backgroundColor: `${mode.color}18` }]} />
               )}
               <Ionicons
                 name={mode.icon as any}
-                size={14}
-                color={activeMode === mode.id ? "#fff" : Colors.textSecondary}
+                size={13}
+                color={activeMode === mode.id ? mode.color : Colors.textMuted}
               />
-              <Text style={[styles.modeLabel, activeMode === mode.id && styles.modeLabelActive]}>
+              <Text style={[styles.modeLabel, activeMode === mode.id && { color: mode.color }]}>
                 {mode.label}
               </Text>
             </Pressable>
@@ -182,32 +224,26 @@ export default function SolifScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
+        behavior="padding"
         keyboardVerticalOffset={0}
       >
         <FlatList
-          ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
           inverted
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            isTyping ? (
-              <View style={[styles.messageBubble, styles.aiBubble]}>
-                <TypingIndicator />
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => (
-            <MessageBubble message={item} />
-          )}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={showTyping ? <TypingBubble /> : null}
+          renderItem={({ item }) => <MessageBubble message={item} />}
         />
 
-        <View style={[styles.inputArea, { paddingBottom: botInset + 12 }]}>
-          <View style={styles.inputContainer}>
+        <View style={[styles.inputArea, { paddingBottom: botInset + 8 }]}>
+          <View style={styles.inputRow}>
             <TextInput
+              ref={inputRef}
               style={styles.textInput}
               placeholder="اكتب رسالتك..."
               placeholderTextColor={Colors.textMuted}
@@ -215,50 +251,52 @@ export default function SolifScreen() {
               onChangeText={setInputText}
               multiline
               textAlign="right"
-              onSubmitEditing={sendMessage}
+              blurOnSubmit={false}
             />
             <Pressable
               onPress={sendMessage}
-              disabled={!inputText.trim()}
-              style={({ pressed }) => [
-                styles.sendBtn,
-                !inputText.trim() && styles.sendBtnDisabled,
-                pressed && { opacity: 0.8 },
-              ]}
+              disabled={!inputText.trim() || isStreaming}
+              style={({ pressed }) => [styles.sendBtn, pressed && { opacity: 0.8 }]}
             >
               <LinearGradient
-                colors={inputText.trim() ? [Colors.blue, Colors.purple] : [Colors.backgroundCardBorder, Colors.backgroundCardBorder]}
+                colors={inputText.trim() && !isStreaming ? [Colors.blue, Colors.purple] : [Colors.backgroundCardBorder, Colors.backgroundCardBorder]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.sendBtnGrad}
               >
-                <Ionicons
-                  name="send"
-                  size={18}
-                  color={inputText.trim() ? "#fff" : Colors.textMuted}
-                />
+                {isStreaming ? (
+                  <ActivityIndicator size="small" color={Colors.textMuted} />
+                ) : (
+                  <Ionicons
+                    name="send"
+                    size={17}
+                    color={inputText.trim() ? "#fff" : Colors.textMuted}
+                  />
+                )}
               </LinearGradient>
             </Pressable>
           </View>
+          <Text style={styles.pointsHint}>كل رسالة = 5 نقاط</Text>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </GridBackground>
   );
 }
 
 function MessageBubble({ message }: { message: Message }) {
+  const isUser = message.role === "user";
   return (
-    <View style={[styles.messageRow, message.isUser ? styles.messageRowUser : styles.messageRowAI]}>
-      <View style={[styles.messageBubble, message.isUser ? styles.userBubble : styles.aiBubble]}>
-        {message.isUser && (
+    <View style={[styles.messageRow, isUser ? styles.userRow : styles.aiRow]}>
+      <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
+        {isUser && (
           <LinearGradient
             colors={[Colors.blue, Colors.purple]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
           />
         )}
-        <Text style={[styles.messageText, message.isUser && styles.messageTextUser]}>
+        <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
           {message.text}
         </Text>
       </View>
@@ -266,176 +304,125 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-function TypingIndicator() {
-  const dot1 = useSharedValue(0.3);
-  const dot2 = useSharedValue(0.3);
-  const dot3 = useSharedValue(0.3);
+function TypingBubble() {
+  const d1 = useSharedValue(0.3);
+  const d2 = useSharedValue(0.3);
+  const d3 = useSharedValue(0.3);
 
   React.useEffect(() => {
-    dot1.value = withRepeat(
-      withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })),
-      -1, true
-    );
-    dot2.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 200 }),
-        withTiming(1, { duration: 400 }),
-        withTiming(0.3, { duration: 400 })
-      ),
-      -1, true
-    );
-    dot3.value = withRepeat(
-      withSequence(
-        withTiming(0.3, { duration: 400 }),
-        withTiming(1, { duration: 400 }),
-        withTiming(0.3, { duration: 400 })
-      ),
-      -1, true
-    );
+    d1.value = withRepeat(withSequence(withTiming(1, { duration: 350 }), withTiming(0.3, { duration: 350 })), -1, true);
+    d2.value = withRepeat(withSequence(withTiming(0.3, { duration: 175 }), withTiming(1, { duration: 350 }), withTiming(0.3, { duration: 350 })), -1, true);
+    d3.value = withRepeat(withSequence(withTiming(0.3, { duration: 350 }), withTiming(1, { duration: 350 }), withTiming(0.3, { duration: 350 })), -1, true);
   }, []);
 
-  const s1 = useAnimatedStyle(() => ({ opacity: dot1.value }));
-  const s2 = useAnimatedStyle(() => ({ opacity: dot2.value }));
-  const s3 = useAnimatedStyle(() => ({ opacity: dot3.value }));
+  const s1 = useAnimatedStyle(() => ({ opacity: d1.value, transform: [{ scaleY: 0.5 + d1.value * 0.5 }] }));
+  const s2 = useAnimatedStyle(() => ({ opacity: d2.value, transform: [{ scaleY: 0.5 + d2.value * 0.5 }] }));
+  const s3 = useAnimatedStyle(() => ({ opacity: d3.value, transform: [{ scaleY: 0.5 + d3.value * 0.5 }] }));
 
   return (
-    <View style={{ flexDirection: "row", gap: 4, paddingHorizontal: 4, alignItems: "center" }}>
-      <Animated.View style={[styles.typingDot, s1]} />
-      <Animated.View style={[styles.typingDot, s2]} />
-      <Animated.View style={[styles.typingDot, s3]} />
+    <View style={styles.aiRow}>
+      <View style={[styles.bubble, styles.aiBubble, { paddingVertical: 14, paddingHorizontal: 18 }]}>
+        <View style={{ flexDirection: "row", gap: 5, alignItems: "center" }}>
+          <Animated.View style={[styles.typingDot, s1]} />
+          <Animated.View style={[styles.typingDot, s2]} />
+          <Animated.View style={[styles.typingDot, s3]} />
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
     gap: 12,
-    zIndex: 10,
   },
-  headerContent: {
+  avatarRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    justifyContent: "space-between",
   },
-  headerGlow: {
-    shadowColor: Colors.blue,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-  },
-  headerInfo: { flex: 1, gap: 2 },
-  headerTitle: {
-    fontSize: 22,
-    fontFamily: "Cairo_700Bold",
-    color: Colors.text,
-    textAlign: "right",
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    fontFamily: "Cairo_400Regular",
-    color: Colors.textSecondary,
-    textAlign: "right",
-  },
-  statusDot: {
+  statusInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    justifyContent: "flex-end",
+    gap: 10,
   },
-  statusDotInner: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 11,
-    fontFamily: "Cairo_400Regular",
-    color: Colors.textMuted,
-  },
-  modeScroll: {
-    flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
+  statusDot: { alignItems: "center", justifyContent: "center" },
+  statusDotInner: { width: 8, height: 8, borderRadius: 4 },
+  headerTitle: { fontSize: 22, fontFamily: "Cairo_700Bold", color: Colors.text },
+  headerSubtitle: { fontSize: 12, fontFamily: "Cairo_400Regular", color: Colors.textSecondary },
+  modeRow: { flexDirection: "row", gap: 8 },
   modeChip: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 100,
     backgroundColor: Colors.backgroundCard,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     overflow: "hidden",
   },
-  modeChipActive: { borderColor: Colors.blue },
-  modeLabel: {
-    fontSize: 12,
-    fontFamily: "Cairo_600SemiBold",
-    color: Colors.textSecondary,
-  },
-  modeLabelActive: { color: "#fff" },
+  modeLabel: { fontSize: 12, fontFamily: "Cairo_600SemiBold", color: Colors.textMuted },
   messagesList: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 12,
+    gap: 10,
   },
-  messageRow: { marginVertical: 4 },
-  messageRowUser: { alignItems: "flex-left" },
-  messageRowAI: { alignItems: "flex-right" },
-  messageBubble: {
-    maxWidth: "80%",
+  messageRow: { marginVertical: 3 },
+  userRow: { alignItems: "flex-start" },
+  aiRow: { alignItems: "flex-end" },
+  bubble: {
+    maxWidth: "82%",
     borderRadius: 18,
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     overflow: "hidden",
   },
-  userBubble: {
-    alignSelf: "flex-start",
-    borderBottomLeftRadius: 4,
-  },
+  userBubble: { borderBottomLeftRadius: 5 },
   aiBubble: {
-    alignSelf: "flex-end",
     backgroundColor: Colors.backgroundCard,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 5,
   },
-  messageText: {
+  bubbleText: {
     fontSize: 15,
     fontFamily: "Cairo_400Regular",
     color: Colors.textSecondary,
     lineHeight: 24,
     textAlign: "right",
   },
-  messageTextUser: { color: "#fff" },
+  bubbleTextUser: { color: "#fff" },
   typingDot: {
     width: 7,
-    height: 7,
+    height: 14,
     borderRadius: 4,
-    backgroundColor: Colors.textSecondary,
+    backgroundColor: Colors.blue,
   },
   inputArea: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    backgroundColor: Colors.background,
+    paddingTop: 10,
+    backgroundColor: Colors.backgroundSecondary,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+    gap: 6,
   },
-  inputContainer: {
+  inputRow: {
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 10,
     backgroundColor: Colors.backgroundCard,
-    borderRadius: 20,
-    borderWidth: 1,
+    borderRadius: 22,
+    borderWidth: 1.5,
     borderColor: Colors.border,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   textInput: {
     flex: 1,
@@ -443,19 +430,10 @@ const styles = StyleSheet.create({
     fontFamily: "Cairo_400Regular",
     color: Colors.text,
     maxHeight: 120,
-    paddingVertical: 6,
+    paddingVertical: 8,
     textAlignVertical: "top",
   },
-  sendBtn: {
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  sendBtnDisabled: {},
-  sendBtnGrad: {
-    width: 38,
-    height: 38,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 14,
-  },
+  sendBtn: { borderRadius: 14, overflow: "hidden", marginBottom: 4 },
+  sendBtnGrad: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 14 },
+  pointsHint: { fontSize: 11, fontFamily: "Cairo_400Regular", color: Colors.textMuted, textAlign: "center" },
 });
