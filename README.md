@@ -1,4 +1,5 @@
 Name app: نطق
+.
 Design a professional AI-powered mobile application (name to be decided later).
 The app’s core purpose is: Talk, Learn, and Complete Tasks using AI.
 The design must follow modern 2026 UI/UX standards with a gamified and futuristic experience.
