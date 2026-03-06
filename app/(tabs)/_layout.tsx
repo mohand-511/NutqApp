@@ -5,25 +5,28 @@ import { BlurView } from "expo-blur";
 import { Platform, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/context/ThemeContext";
+import { useApp } from "@/context/AppContext";
 
 function NativeTabLayout() {
+  const { language } = useApp();
+  const ar = language === "ar";
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>الرئيسية</Label>
+        <Label>{ar ? "الرئيسية" : "Home"}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="solif">
         <Icon sf={{ default: "bubble.left", selected: "bubble.left.fill" }} />
-        <Label>سوالف</Label>
+        <Label>{ar ? "سوالف" : "Chat"}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="loyalty">
         <Icon sf={{ default: "star", selected: "star.fill" }} />
-        <Label>النقاط</Label>
+        <Label>{ar ? "النقاط" : "Rewards"}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>حسابي</Label>
+        <Label>{ar ? "حسابي" : "Profile"}</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -31,6 +34,8 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const { colors, isDark } = useTheme();
+  const { language } = useApp();
+  const ar = language === "ar";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -67,7 +72,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "الرئيسية",
+          title: ar ? "الرئيسية" : "Home",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
@@ -76,7 +81,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="solif"
         options={{
-          title: "سوالف",
+          title: ar ? "سوالف" : "Chat",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="chatbubble-outline" size={size} color={color} />
           ),
@@ -85,7 +90,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="loyalty"
         options={{
-          title: "النقاط",
+          title: ar ? "النقاط" : "Rewards",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="star-outline" size={size} color={color} />
           ),
@@ -94,7 +99,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "حسابي",
+          title: ar ? "حسابي" : "Profile",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person-outline" size={size} color={color} />
           ),
