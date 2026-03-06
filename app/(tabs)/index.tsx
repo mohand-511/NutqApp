@@ -558,18 +558,44 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   const ring1 = useSharedValue(1);
   const ring2 = useSharedValue(1);
   const ring3 = useSharedValue(1);
+  const wave1 = useSharedValue(0.3);
+  const wave2 = useSharedValue(0.3);
+  const wave3 = useSharedValue(0.3);
+  const wave4 = useSharedValue(0.3);
+  const wave5 = useSharedValue(0.3);
 
   useEffect(() => {
     if (phase === "listening") {
       ring1.value = withRepeat(withSequence(withTiming(1.4, { duration: 600 }), withTiming(1, { duration: 600 })), -1, false);
       ring2.value = withRepeat(withSequence(withTiming(1, { duration: 300 }), withTiming(1.6, { duration: 700 }), withTiming(1, { duration: 600 })), -1, false);
       ring3.value = withRepeat(withSequence(withTiming(1, { duration: 600 }), withTiming(1.8, { duration: 800 }), withTiming(1, { duration: 600 })), -1, false);
+      wave1.value = 0.3; wave2.value = 0.3; wave3.value = 0.3; wave4.value = 0.3; wave5.value = 0.3;
+    } else if (phase === "speaking") {
+      ring1.value = withTiming(1, { duration: 200 });
+      ring2.value = withTiming(1, { duration: 200 });
+      ring3.value = withTiming(1, { duration: 200 });
+      wave1.value = withRepeat(withSequence(withTiming(1, { duration: 300 }), withTiming(0.2, { duration: 280 })), -1, false);
+      wave2.value = withRepeat(withSequence(withTiming(0.5, { duration: 180 }), withTiming(0.9, { duration: 350 }), withTiming(0.3, { duration: 220 })), -1, false);
+      wave3.value = withRepeat(withSequence(withTiming(0.8, { duration: 250 }), withTiming(0.2, { duration: 300 }), withTiming(1, { duration: 280 })), -1, false);
+      wave4.value = withRepeat(withSequence(withTiming(0.4, { duration: 320 }), withTiming(0.9, { duration: 250 })), -1, false);
+      wave5.value = withRepeat(withSequence(withTiming(0.9, { duration: 200 }), withTiming(0.3, { duration: 350 })), -1, false);
     } else {
       ring1.value = withTiming(1, { duration: 300 });
       ring2.value = withTiming(1, { duration: 300 });
       ring3.value = withTiming(1, { duration: 300 });
+      wave1.value = withTiming(0.3, { duration: 300 });
+      wave2.value = withTiming(0.3, { duration: 300 });
+      wave3.value = withTiming(0.3, { duration: 300 });
+      wave4.value = withTiming(0.3, { duration: 300 });
+      wave5.value = withTiming(0.3, { duration: 300 });
     }
   }, [phase]);
+
+  const wBar1 = useAnimatedStyle(() => ({ transform: [{ scaleY: wave1.value }] }));
+  const wBar2 = useAnimatedStyle(() => ({ transform: [{ scaleY: wave2.value }] }));
+  const wBar3 = useAnimatedStyle(() => ({ transform: [{ scaleY: wave3.value }] }));
+  const wBar4 = useAnimatedStyle(() => ({ transform: [{ scaleY: wave4.value }] }));
+  const wBar5 = useAnimatedStyle(() => ({ transform: [{ scaleY: wave5.value }] }));
 
   const r1Style = useAnimatedStyle(() => ({
     transform: [{ scale: ring1.value }],
@@ -585,24 +611,41 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   }));
 
   async function speakText(text: string) {
-    if (Platform.OS !== "web") return;
+    if (Platform.OS !== "web") { setPhase("done"); return; }
     try {
       const baseUrl = getApiUrl();
-      const res = await fetch(`${baseUrl}api/tts`, {
+      // Use native window.fetch for binary audio — expo/fetch doesn't support arrayBuffer properly
+      const nativeFetch = typeof window !== "undefined" ? window.fetch.bind(window) : globalThis.fetch;
+      const res = await nativeFetch(`${baseUrl}api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.slice(0, 400), voice: "shimmer" }),
+        body: JSON.stringify({ text: text.slice(0, 500), voice: "shimmer" }),
       });
-      if (!res.ok) return;
-      const blob = await res.blob();
+      if (!res.ok) { setPhase("done"); return; }
+      const arrayBuf = await res.arrayBuffer();
+      const blob = new Blob([arrayBuf], { type: "audio/mpeg" });
       const url = URL.createObjectURL(blob);
-      if (audioRef.current) { audioRef.current.pause(); URL.revokeObjectURL(audioRef.current.src); }
+      // Stop any previous audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        try { URL.revokeObjectURL(audioRef.current.src); } catch {}
+      }
       const audio = new Audio(url);
       audioRef.current = audio;
       setPhase("speaking");
-      audio.play();
-      audio.onended = () => { setPhase("done"); URL.revokeObjectURL(url); };
-      audio.onerror = () => setPhase("done");
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            audio.onended = () => { setPhase("done"); try { URL.revokeObjectURL(url); } catch {} };
+          })
+          .catch(() => {
+            // Autoplay blocked — set done and show the response
+            setPhase("done");
+            try { URL.revokeObjectURL(url); } catch {}
+          });
+      }
+      audio.onerror = () => { setPhase("done"); try { URL.revokeObjectURL(url); } catch {}; };
     } catch {
       setPhase("done");
     }
@@ -735,6 +778,13 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
                 <Animated.View style={[vmStyles.ring, { borderColor: `${micColor}50`, width: 140, height: 140 }, r2Style]} />
                 <Animated.View style={[vmStyles.ring, { borderColor: `${micColor}70`, width: 110, height: 110 }, r1Style]} />
               </>
+            )}
+            {phase === "speaking" && (
+              <View style={vmStyles.waveRow}>
+                {([wBar1, wBar2, wBar3, wBar4, wBar5] as const).map((style, i) => (
+                  <Animated.View key={i} style={[vmStyles.waveBar, { backgroundColor: "#10B981" }, style]} />
+                ))}
+              </View>
             )}
             <Pressable
               onPress={phase === "idle" || phase === "done" ? startListening : phase === "speaking" ? reset : stopListening}
@@ -954,6 +1004,8 @@ const vmStyles = StyleSheet.create({
   micArea: { alignItems: "center", justifyContent: "center", height: 190, marginBottom: 8, position: "relative" },
   ring: { position: "absolute", width: 170, height: 170, borderRadius: 85, borderWidth: 1.5 },
   micBtn: { width: 84, height: 84, borderRadius: 42, alignItems: "center", justifyContent: "center", zIndex: 10 },
+  waveRow: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  waveBar: { width: 5, height: 40, borderRadius: 3 },
   phaseLabel: { fontSize: 14, fontFamily: "Cairo_400Regular", textAlign: "center", marginBottom: 16 },
   transcriptBox: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12, gap: 6 },
   transcriptLabel: { fontSize: 11, fontFamily: "Cairo_400Regular" },
