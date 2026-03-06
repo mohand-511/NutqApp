@@ -126,6 +126,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── STT — Speech to Text via OpenAI Whisper ──────────────────────────────
+  app.post("/api/stt", async (req, res) => {
+    try {
+      const { audio, mimeType = "audio/webm", language = "ar" } = req.body;
+      if (!audio) return res.status(400).json({ error: "audio required" });
+
+      const buffer = Buffer.from(audio, "base64");
+      // Node 20+ has global File; otherwise fall back to a named buffer trick
+      const ext = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";
+      const file = new File([buffer], `audio.${ext}`, { type: mimeType });
+
+      const transcription = await openai.audio.transcriptions.create({
+        file,
+        model: "whisper-1",
+        language: language === "ar" ? "ar" : "en",
+      });
+
+      res.json({ text: transcription.text });
+    } catch (error: any) {
+      console.error("STT error:", error?.message || error);
+      res.status(500).json({ error: "Transcription failed" });
+    }
+  });
+
   // ── User Settings ─────────────────────────────────────────────────────────
   app.post("/api/user/sync", async (req, res) => {
     try {

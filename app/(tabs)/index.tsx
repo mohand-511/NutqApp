@@ -553,7 +553,9 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   const [errorMsg, setErrorMsg] = useState("");
   const [textInput, setTextInput] = useState("");
   const phaseRef = useRef<string>("idle");
-  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<any>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Keep phaseRef in sync so async callbacks always see current phase
@@ -698,55 +700,111 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
     }
   }
 
-  function startListening() {
+  function stopStream() {
+    try { streamRef.current?.getTracks().forEach((t) => t.stop()); } catch {}
+    streamRef.current = null;
+  }
+
+  async function startListening() {
     setTranscript("");
     setAiResponse("");
     setErrorMsg("");
-    if (Platform.OS === "web") {
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SR) {
-        setErrorMsg(language === "ar" ? "المتصفح لا يدعم التعرف على الصوت — استخدم Chrome" : "Browser doesn't support voice recognition — use Chrome");
+    if (Platform.OS !== "web") { return; }
+
+    // Check if MediaRecorder is available
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setErrorMsg(language === "ar" ? "المتصفح لا يدعم التسجيل الصوتي" : "Browser doesn't support audio recording");
+      return;
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err: any) {
+      const denied = err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError";
+      if (denied) {
+        setErrorMsg("__mic_denied__");
+      } else {
+        setErrorMsg(language === "ar" ? "تعذر الوصول إلى الميكروفون" : "Could not access microphone");
+      }
+      return;
+    }
+
+    streamRef.current = stream;
+    chunksRef.current = [];
+
+    // Pick best supported MIME type
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+      ? "audio/webm"
+      : MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
+      ? "audio/ogg;codecs=opus"
+      : "audio/mp4";
+
+    const recorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorderRef.current = recorder;
+
+    recorder.ondataavailable = (e: any) => {
+      if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = async () => {
+      stopStream();
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      if (blob.size < 1000) {
+        // Too small — user probably didn't say anything
+        if (phaseRef.current !== "processing") setPhaseSync("idle");
         return;
       }
-      setPhaseSync("listening");
-      const rec = new SR();
-      recognitionRef.current = rec;
-      rec.lang = language === "ar" ? "ar-SA" : "en-US";
-      rec.continuous = false;
-      rec.interimResults = true;
-      let finalSent = false;
-      rec.onresult = (event: any) => {
-        const t = Array.from(event.results as any[])
-          .map((r: any) => r[0].transcript)
-          .join("");
-        setTranscript(t);
-        if ((event.results[event.results.length - 1] as any).isFinal && !finalSent) {
-          finalSent = true;
-          rec.stop();
-          sendToAI(t);
+      setPhaseSync("processing");
+
+      try {
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => {
+            const result = (reader.result as string).split(",")[1];
+            if (result) resolve(result);
+            else reject(new Error("empty base64"));
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+
+        const baseUrl = getApiUrl();
+        const sttRes = await nativeFetch(`${baseUrl}api/stt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            audio: base64,
+            mimeType: mimeType.split(";")[0],
+            language: language === "ar" ? "ar" : "en",
+          }),
+        });
+        if (!sttRes.ok) throw new Error("STT failed");
+        const { text } = await sttRes.json();
+        if (!text?.trim()) {
+          setErrorMsg(language === "ar" ? "لم يُسمع شيء. حاول مرة أخرى." : "Nothing heard. Try again.");
+          setPhaseSync("idle");
+          return;
         }
-      };
-      rec.onerror = (e: any) => {
-        const msg = e.error === "not-allowed"
-          ? (language === "ar" ? "تم رفض الميكروفون — أذِن في المتصفح" : "Microphone denied — allow it in browser settings")
-          : (language === "ar" ? "خطأ في الميكروفون" : "Microphone error");
-        setErrorMsg(msg);
+        setTranscript(text);
+        await sendToAI(text);
+      } catch {
+        setErrorMsg(language === "ar" ? "تعذر التعرف على الصوت. حاول مرة أخرى." : "Speech recognition failed. Try again.");
         setPhaseSync("idle");
-      };
-      rec.onend = () => {
-        // Use phaseRef (not phase) to avoid stale closure — only reset if still in listening
-        if (phaseRef.current === "listening") setPhaseSync("idle");
-      };
-      rec.start();
-    } else {
-      // Native: focus text input instead
-      setPhaseSync("idle");
-    }
+      }
+    };
+
+    recorder.start();
+    setPhaseSync("listening");
   }
 
   function stopListening() {
-    recognitionRef.current?.stop();
-    setPhaseSync("idle");
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    // Phase will be updated in recorder.onstop after Whisper processes
   }
 
   function handleTextSend() {
@@ -759,7 +817,10 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
 
   function reset() {
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-    recognitionRef.current?.stop();
+    if (mediaRecorderRef.current?.state === "recording") {
+      try { mediaRecorderRef.current.stop(); } catch {}
+    }
+    stopStream();
     setPhaseSync("idle");
     setTranscript("");
     setAiResponse("");
@@ -860,9 +921,29 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
             </View>
           )}
 
-          {errorMsg !== "" && (
+          {errorMsg === "__mic_denied__" ? (
+            <View style={[vmStyles.micDeniedBox, { backgroundColor: isDark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.25)" }]}>
+              <Ionicons name="mic-off-outline" size={18} color="#EF4444" />
+              <View style={{ flex: 1, gap: 4 }}>
+                <Text style={[vmStyles.micDeniedText, { color: colors.text }]}>
+                  {language === "ar" ? "الميكروفون محجوب في هذه النافذة" : "Microphone blocked in this preview"}
+                </Text>
+                <Text style={[vmStyles.micDeniedSub, { color: colors.textSecondary }]}>
+                  {language === "ar" ? "افتح التطبيق في تبويب جديد للسماح بالميكروفون" : "Open in a new tab to allow microphone access"}
+                </Text>
+              </View>
+              {Platform.OS === "web" && (
+                <Pressable
+                  onPress={() => window.open(window.location.href, "_blank")}
+                  style={vmStyles.newTabBtn}
+                >
+                  <Ionicons name="open-outline" size={14} color="#fff" />
+                </Pressable>
+              )}
+            </View>
+          ) : errorMsg !== "" ? (
             <Text style={[vmStyles.errorText, { color: colors.error }]}>{errorMsg}</Text>
-          )}
+          ) : null}
 
           {/* Text input — always visible on all platforms as fallback */}
           <View style={[vmStyles.nativeInputRow, { borderColor: colors.border, backgroundColor: isDark ? "rgba(255,255,255,0.06)" : colors.backgroundCard }]}>
@@ -1046,4 +1127,8 @@ const vmStyles = StyleSheet.create({
   nativeSendBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   resetBtn: { alignItems: "center", paddingVertical: 12, borderTopWidth: 1, marginTop: 4 },
   resetBtnText: { fontSize: 14, fontFamily: "Cairo_600SemiBold" },
+  micDeniedBox: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 4 },
+  micDeniedText: { fontSize: 13, fontFamily: "Cairo_600SemiBold" },
+  micDeniedSub: { fontSize: 12, fontFamily: "Cairo_400Regular" },
+  newTabBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: "#4F46E5", alignItems: "center", justifyContent: "center" },
 });
