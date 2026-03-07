@@ -44,6 +44,24 @@ Your style:
 - Use simple, accessible language`,
 };
 
+const LIA_SYSTEM_PROMPT = `You are Lia, a friendly English tutor inside a mobile learning app. Your job is to help Arabic-speaking users practice speaking English.
+
+Rules:
+- Always encourage the user warmly.
+- If the user makes a grammar mistake, gently correct it like: "Good try! Just remember to say: [correction]"
+- Ask a short follow-up question to keep the conversation going.
+- Keep your responses concise — 2 to 3 sentences maximum.
+- Use simple, natural English. Avoid complex vocabulary unless the stage demands it.
+- If the user seems very confused, you may briefly clarify in Arabic (max one sentence).
+- Be positive and supportive like a real tutor.`;
+
+const LIA_STAGE_CONTEXTS: Record<number, string> = {
+  1: "Stage 1 – Greetings: Focus on simple greetings, introductions, and farewells. Examples: Hello, Hi, How are you?, Nice to meet you, My name is..., Goodbye, See you later.",
+  2: "Stage 2 – Daily Conversation: Talk about daily life topics like food, weather, hobbies, family, and daily routines. Keep it light and conversational.",
+  3: "Stage 3 – Asking Questions: Help the user practice forming and using questions: What, Where, When, Why, How, Do you...?, Can you...? Encourage them to ask you things too.",
+  4: "Stage 4 – Real-Life Situations: Practice realistic scenarios such as ordering at a restaurant, shopping, asking for directions, or making plans with a friend.",
+};
+
 const STAGE_PROMPTS: Record<number, string> = {
   1: "أنت تساعد المستخدم في تعلم أساسيات المحادثة. ابدأ بتحية بسيطة وسؤال عن حاله.",
   2: "أنت تساعد المستخدم على تعلم طرح الأسئلة والإجابة عليها.",
@@ -333,6 +351,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(JSON.parse(response.choices[0]?.message?.content || "{}"));
     } catch (error) {
       res.json({ word: "مرحبا", translation: "Hello", pronunciation: "Mar-ha-ban", example: "مرحبا، كيف حالك؟", tip: "تذكر أن تبدأ كل محادثة بالتحية" });
+    }
+  });
+
+  // ── Lia Conversation (English Tutor, streaming) ────────────────────────────
+  app.post("/api/conversation", async (req, res) => {
+    try {
+      const { messages, stage = 1 } = req.body;
+      const stageCtx = LIA_STAGE_CONTEXTS[stage as number] || LIA_STAGE_CONTEXTS[1];
+      const systemPrompt = `${LIA_SYSTEM_PROMPT}\n\nCurrent context: ${stageCtx}`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        stream: true,
+        max_tokens: 300,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) {
+          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        }
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (error) {
+      console.error("Conversation error:", error);
+      if (!res.headersSent) res.status(500).json({ error: "Conversation failed" });
+      else { res.write(`data: ${JSON.stringify({ error: "AI error" })}\n\n`); res.end(); }
+    }
+  });
+
+  // ── Lia Suggestions ────────────────────────────────────────────────────────
+  app.post("/api/conversation/suggestions", async (req, res) => {
+    try {
+      const { lastAiMessage, stage = 1 } = req.body;
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Generate 3 very short English reply suggestions (3-7 words each) for an English learner responding to their tutor Lia. Return JSON: {"suggestions":["...", "...", "..."]}`,
+          },
+          { role: "user", content: `Lia said: "${lastAiMessage}"` },
+        ],
+        max_tokens: 80,
+        response_format: { type: "json_object" },
+      });
+      const raw = response.choices[0]?.message?.content || '{"suggestions":[]}';
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch {}
+      const suggestions: string[] = parsed.suggestions || parsed.replies || [];
+      res.json({ suggestions: suggestions.slice(0, 3) });
+    } catch {
+      res.json({ suggestions: ["That's great!", "I understand.", "Tell me more!"] });
     }
   });
 

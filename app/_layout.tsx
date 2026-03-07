@@ -31,6 +31,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="english-tutor"
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+        }}
+      />
+      <Stack.Screen
         name="(auth)"
         options={{
           presentation: "modal",

@@ -215,6 +215,36 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
+        {/* English Tutor Card */}
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/english-tutor"); }}
+          style={({ pressed }) => [s.aiCard, pressed && { opacity: 0.88 }]}
+          testID="home-tutor-btn"
+        >
+          <LinearGradient
+            colors={isDark ? ["#7C3AED28", "#4C1D9518"] : ["#7C3AED18", "#4C1D9508"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+          />
+          <View style={[s.aiCardInner, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <View style={[s.aiCardChevron, { transform: [{ scaleX: isRTL ? 1 : -1 }] }]}>
+              <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+            </View>
+            <View style={s.aiCardText}>
+              <Text style={[s.aiCardTitle, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "مدرسة الإنجليزية - Lia" : "English Tutor – Lia"}
+              </Text>
+              <Text style={[s.aiCardSub, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "تحدث إنجليزي مع مدرس AI صديق" : "Practice English with a friendly AI tutor"}
+              </Text>
+            </View>
+            <View style={[s.aiCardIcon, { backgroundColor: "#7C3AED22", borderColor: "#7C3AED40" }]}>
+              <Ionicons name="language-outline" size={22} color="#A78BFA" />
+            </View>
+          </View>
+        </Pressable>
+
         {/* Learning Path */}
         <View style={s.pathSection}>
           <View style={[s.pathHeaderRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>

@@ -1,0 +1,119 @@
+You are a senior AI engineer and mobile app developer.
+
+Your task is to build a real AI English conversation feature inside my learning app. The design must look similar to a friendly AI tutor chat interface.
+
+IMPORTANT:
+- The AI must be REAL (connected to an AI API), not scripted responses.
+- Use OpenAI API for the conversation intelligence.
+- Use Speech-to-Text and Text-to-Speech so the user can speak with the AI.
+- Do NOT break the existing UI design.
+- Follow a clean modern UI similar to language learning apps.
+
+FEATURES TO BUILD
+
+1. Conversation Screen (Main Chat Page)
+Create a chat interface with:
+
+- AI avatar at the top
+- Message bubbles
+- AI messages on the left
+- User messages on the right
+- Smooth chat scrolling
+- Suggested quick reply buttons
+- Voice conversation button
+
+2. AI Tutor Personality
+The AI should act as a friendly English teacher.
+
+System prompt:
+
+"You are Lia, a friendly English tutor inside a mobile learning app. 
+Your job is to help users practice speaking English.
+
+Rules:
+- Always encourage the user.
+- Correct mistakes politely.
+- Ask short conversation questions.
+- Keep responses simple and natural.
+- Prefer English responses but explain briefly in Arabic if needed."
+
+3. Voice Conversation
+
+Implement:
+
+Speech-to-Text:
+Convert user speech to text.
+
+Text-to-Speech:
+AI speaks responses aloud.
+
+Flow:
+
+User taps microphone  
+→ user speaks  
+→ speech converts to text  
+→ send to AI API  
+→ AI generates reply  
+→ show text bubble  
+→ play AI voice response.
+
+4. Smart Suggestions
+
+After each AI message, generate 2–3 suggested replies such as:
+
+"I'm good, thank you."
+"Doing well, and you?"
+"Yes, I'm ready."
+
+These should be generated dynamically by the AI.
+
+5. Pronunciation Feedback
+
+When user speaks:
+
+- Analyze pronunciation confidence.
+- Show a feedback card like:
+
+Great ⭐⭐⭐
+Good ⭐⭐
+Needs improvement ⭐
+
+6. Learning Stages
+
+Create conversation stages:
+
+Stage 1 – Greetings  
+Stage 2 – Daily conversation  
+Stage 3 – Asking questions  
+Stage 4 – Real-life situations
+
+The AI should adapt the conversation based on the stage.
+
+7. Technology
+
+Frontend:
+React Native or Next.js mobile style UI
+
+Backend:
+Node.js server
+
+AI:
+OpenAI API (GPT model)
+
+Voice:
+Speech-to-Text
+Text-to-Speech
+
+8. Experience
+
+The experience should feel like:
+
+- Duolingo conversation mode
+- Friendly AI tutor
+- Natural conversation
+- Fast responses
+- Smooth animations
+
+Goal:
+
+Build a fully functional AI conversation learning system where users can speak naturally with the AI and improve their English through real dialogue.
