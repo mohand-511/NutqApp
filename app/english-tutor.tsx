@@ -42,11 +42,11 @@ const STAGES = [
 ];
 
 const STAGE_WELCOMES: Record<number, string> = {
-  1: "Hi! I'm Lia, your English tutor. Let's start with greetings. Can you say hello and introduce yourself?",
-  2: "Great work! Now let's talk about your day. What did you do today? How are you feeling?",
-  3: "Nice! This stage is about asking questions. Try asking me something using Who, What, Where, When, or Why!",
-  4: "Excellent! Let's practice real-life situations. Imagine you are at a restaurant. How would you order food?",
-  5: "Amazing progress! Now let's practice sharing opinions. What do you think about learning English? Do you like it?",
+  1: "Hi! I'm Lia, your interviewer today. Let's practice for your big day. To start, could you tell me a little bit about yourself?",
+  2: "Awesome! Now let's talk about your daily life. What does a typical day look like for you?",
+  3: "Great! This phase is about questions. Try asking me something — anything you're curious about!",
+  4: "I see! Let's practice a real-life scenario. Imagine you're at a restaurant. How would you order your meal?",
+  5: "Great point! Now let's share some opinions. What do you think is the most important skill in life, and why?",
 };
 
 interface Message {
