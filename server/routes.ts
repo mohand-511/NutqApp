@@ -48,22 +48,30 @@ Your style:
 - Use simple, accessible language`,
 };
 
-const LIA_SYSTEM_PROMPT = `You are Lia, a friendly English tutor inside a mobile learning app. Your job is to help Arabic-speaking users practice speaking English.
+const LIA_SYSTEM_PROMPT = `You are Lia, a friendly English tutor helping users practice English conversation step by step.
+
+Follow structured stages of learning:
+1. Greetings
+2. Daily conversation
+3. Questions
+4. Real-life situations
+5. Opinions
 
 Rules:
-- Always encourage the user warmly.
-- If the user makes a grammar mistake, gently correct it like: "Good try! Just remember to say: [correction]"
-- Ask a short follow-up question to keep the conversation going.
-- Keep your responses concise — 2 to 3 sentences maximum.
-- Use simple, natural English. Avoid complex vocabulary unless the stage demands it.
+- Ask short questions.
+- Encourage the learner warmly.
+- Correct mistakes politely: "Good try! The correct way is: [correction]"
+- Keep responses concise — 2 to 3 sentences maximum.
+- Use simple, natural English appropriate to the current stage.
 - If the user seems very confused, you may briefly clarify in Arabic (max one sentence).
 - Be positive and supportive like a real tutor.`;
 
 const LIA_STAGE_CONTEXTS: Record<number, string> = {
-  1: "Stage 1 – Greetings: Focus on simple greetings, introductions, and farewells. Examples: Hello, Hi, How are you?, Nice to meet you, My name is..., Goodbye, See you later.",
-  2: "Stage 2 – Daily Conversation: Talk about daily life topics like food, weather, hobbies, family, and daily routines. Keep it light and conversational.",
-  3: "Stage 3 – Asking Questions: Help the user practice forming and using questions: What, Where, When, Why, How, Do you...?, Can you...? Encourage them to ask you things too.",
-  4: "Stage 4 – Real-Life Situations: Practice realistic scenarios such as ordering at a restaurant, shopping, asking for directions, or making plans with a friend.",
+  1: "Stage 1 – Greetings: Practice introducing yourself, saying hello, and asking how someone is. Examples: Hello, Hi, How are you?, Nice to meet you, My name is..., Goodbye.",
+  2: "Stage 2 – Daily Conversation: Talk about the user's day, describe feelings, and practice basic small talk about food, weather, hobbies, and daily routines.",
+  3: "Stage 3 – Asking Questions: Help the user form and use questions with Who, What, Where, When, Why, and How. Encourage them to ask you questions too.",
+  4: "Stage 4 – Real-Life Situations: Practice realistic scenarios — ordering food at a restaurant, asking for directions, shopping, or meeting new people.",
+  5: "Stage 5 – Opinions: Help the user express thoughts and opinions. Practice phrases like: I think..., In my opinion..., I agree because..., I disagree because..., What do you think?",
 };
 
 const STAGE_PROMPTS: Record<number, string> = {
@@ -426,16 +434,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/conversation/suggestions", async (req, res) => {
     try {
       const { lastAiMessage, stage = 1 } = req.body;
+      const stageCtx = LIA_STAGE_CONTEXTS[stage as number] || LIA_STAGE_CONTEXTS[1];
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: `Generate 3 very short English reply suggestions (3-7 words each) for an English learner responding to their tutor Lia. Return JSON: {"suggestions":["...", "...", "..."]}`,
+            content: `Generate 3 short English reply suggestions (3-8 words each) for a learner responding to their English tutor Lia. The learner is in: ${stageCtx}. Suggestions should be natural for that stage and easy enough for a beginner. Return JSON: {"suggestions":["...", "...", "..."]}`,
           },
           { role: "user", content: `Lia said: "${lastAiMessage}"` },
         ],
-        max_tokens: 80,
+        max_tokens: 100,
         response_format: { type: "json_object" },
       });
       const raw = response.choices[0]?.message?.content || '{"suggestions":[]}';

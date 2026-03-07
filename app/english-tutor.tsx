@@ -38,13 +38,15 @@ const STAGES = [
   { id: 2, label: "Daily Chat", icon: "sunny-outline", color: "#7C3AED" },
   { id: 3, label: "Questions", icon: "help-circle-outline", color: "#06B6D4" },
   { id: 4, label: "Real Life", icon: "earth-outline", color: "#10B981" },
+  { id: 5, label: "Opinions", icon: "chatbubble-ellipses-outline", color: "#F59E0B" },
 ];
 
 const STAGE_WELCOMES: Record<number, string> = {
-  1: "Hi there! I'm Lia, your English tutor 👋 Let's start with greetings! How would you say hello to someone you just met?",
-  2: "Welcome back! 😊 Let's chat about daily life. What did you do today?",
-  3: "Great to see you! 🌟 In this stage, we'll practice asking questions. Go ahead — ask me anything!",
-  4: "Awesome! 🎯 Let's practice real-life English. Imagine we're at a coffee shop — what would you like to order?",
+  1: "Hi! I'm Lia, your English tutor. Let's start with greetings. Can you say hello and introduce yourself?",
+  2: "Great work! Now let's talk about your day. What did you do today? How are you feeling?",
+  3: "Nice! This stage is about asking questions. Try asking me something using Who, What, Where, When, or Why!",
+  4: "Excellent! Let's practice real-life situations. Imagine you are at a restaurant. How would you order food?",
+  5: "Amazing progress! Now let's practice sharing opinions. What do you think about learning English? Do you like it?",
 };
 
 interface Message {
@@ -135,6 +137,13 @@ export default function EnglishTutorScreen() {
     if (!autoSpeak) return;
     try {
       await Speech.stop();
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        allowsRecordingIOS: false,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
       setIsSpeaking(true);
       Speech.speak(text.slice(0, 500), {
         language: "en-US",
@@ -169,14 +178,21 @@ export default function EnglishTutorScreen() {
     }
   }, []);
 
-  const handleBubbleSpeak = useCallback((msgId: string, text: string) => {
+  const handleBubbleSpeak = useCallback(async (msgId: string, text: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (speakingMsgId === msgId) {
-      Speech.stop();
+      await Speech.stop();
       setSpeakingMsgId(null);
       return;
     }
-    Speech.stop();
+    await Speech.stop();
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      allowsRecordingIOS: false,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
     setSpeakingMsgId(msgId);
     Speech.speak(text, {
       language: "en-US",
