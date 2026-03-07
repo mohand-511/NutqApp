@@ -821,7 +821,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
       if (!full.trim()) throw new Error("Empty response");
       await speakText(full);
     } catch (e: any) {
-      setErrorMsg(language === "ar" ? "تعذر الاتصال. حاول مرة أخرى." : "Connection failed. Try again.");
+      setErrorMsg("Connection failed. Try again.");
       setPhaseSync("idle");
     }
   }
@@ -855,7 +855,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
       nativeRecordingRef.current = recording;
       setPhaseSync("listening");
     } catch (err) {
-      setErrorMsg(language === "ar" ? "تعذر الوصول إلى الميكروفون" : "Could not access microphone");
+      setErrorMsg("Could not access microphone");
     }
   }
 
@@ -871,7 +871,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
 
     const uri = recording.getURI();
     if (!uri) {
-      setErrorMsg(language === "ar" ? "لم يُسمع شيء. حاول مرة أخرى." : "Nothing heard. Try again.");
+      setErrorMsg("Nothing heard. Try again.");
       setPhaseSync("idle");
       return;
     }
@@ -888,20 +888,20 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
         body: JSON.stringify({
           audio: base64,
           mimeType: "audio/m4a",
-          language: language === "ar" ? "ar" : "en",
+          language: "en",
         }),
       });
       if (!sttRes.ok) throw new Error("STT failed");
       const { text } = await sttRes.json();
       if (!text?.trim()) {
-        setErrorMsg(language === "ar" ? "لم يُسمع شيء. حاول مرة أخرى." : "Nothing heard. Try again.");
+        setErrorMsg("Nothing heard. Try again.");
         setPhaseSync("idle");
         return;
       }
       setTranscript(text);
       await sendToAI(text);
     } catch {
-      setErrorMsg(language === "ar" ? "تعذر التعرف على الصوت. حاول مرة أخرى." : "Speech recognition failed. Try again.");
+      setErrorMsg("Speech recognition failed. Try again.");
       setPhaseSync("idle");
     } finally {
       FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
@@ -920,7 +920,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
 
     // Web: MediaRecorder
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setErrorMsg(language === "ar" ? "المتصفح لا يدعم التسجيل الصوتي" : "Browser doesn't support audio recording");
+      setErrorMsg("Browser doesn't support audio recording");
       return;
     }
 
@@ -932,7 +932,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
       if (denied) {
         setErrorMsg("__mic_denied__");
       } else {
-        setErrorMsg(language === "ar" ? "تعذر الوصول إلى الميكروفون" : "Could not access microphone");
+        setErrorMsg("Could not access microphone");
       }
       return;
     }
@@ -978,19 +978,19 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
         const sttRes = await nativeFetch(`${baseUrl}api/stt`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: base64, mimeType: mimeType.split(";")[0], language: language === "ar" ? "ar" : "en" }),
+          body: JSON.stringify({ audio: base64, mimeType: mimeType.split(";")[0], language: "en" }),
         });
         if (!sttRes.ok) throw new Error("STT failed");
         const { text } = await sttRes.json();
         if (!text?.trim()) {
-          setErrorMsg(language === "ar" ? "لم يُسمع شيء. حاول مرة أخرى." : "Nothing heard. Try again.");
+          setErrorMsg("Nothing heard. Try again.");
           setPhaseSync("idle");
           return;
         }
         setTranscript(text);
         await sendToAI(text);
       } catch {
-        setErrorMsg(language === "ar" ? "تعذر التعرف على الصوت. حاول مرة أخرى." : "Speech recognition failed. Try again.");
+        setErrorMsg("Speech recognition failed. Try again.");
         setPhaseSync("idle");
       }
     };
@@ -1058,7 +1058,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
             <View style={vmStyles.aiBadge}>
               <Ionicons name="hardware-chip-outline" size={13} color={colors.blueLight} />
               <Text style={[vmStyles.aiBadgeText, { color: colors.blueLight }]}>
-                {language === "ar" ? "نطق AI - المحادثة الصوتية" : "Nutq AI – Voice Chat"}
+                {"Nutq AI – Voice Chat"}
               </Text>
             </View>
             <View style={{ width: 34 }} />
@@ -1101,20 +1101,20 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
 
           <Text style={[vmStyles.phaseLabel, { color: colors.textSecondary }]}>
             {phase === "idle" || phase === "done"
-              ? (language === "ar" ? "اضغط للتحدث أو اكتب أدناه" : "Tap mic or type below")
+              ? "Tap mic or type below"
               : phase === "listening"
-              ? language === "ar" ? "يستمع... اضغط للإيقاف" : "Listening... tap to stop"
+              ? "Listening... tap to stop"
               : phase === "speaking"
-              ? language === "ar" ? "يتكلم نطق..." : "Nutq is speaking..."
-              : language === "ar" ? "يفكر نطق..." : "Nutq is thinking..."}
+              ? "Nutq is speaking..."
+              : "Nutq is thinking..."}
           </Text>
 
           {transcript !== "" && (
             <View style={[vmStyles.transcriptBox, { backgroundColor: colors.backgroundCard, borderColor: colors.border }]}>
               <Text style={[vmStyles.transcriptLabel, { color: colors.textMuted }]}>
-                {language === "ar" ? "قلت:" : "You said:"}
+                {"You said:"}
               </Text>
-              <Text style={[vmStyles.transcriptText, { color: colors.text, textAlign: isRTL ? "right" : "left" }]}>
+              <Text style={[vmStyles.transcriptText, { color: colors.text, textAlign: "left" }]}>
                 {transcript}
               </Text>
             </View>
@@ -1126,7 +1126,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
                 colors={[`${colors.blue}15`, `${colors.purple}08`]}
                 style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
               />
-              <Text style={[vmStyles.responseText, { color: colors.text, textAlign: isRTL ? "right" : "left" }]}>
+              <Text style={[vmStyles.responseText, { color: colors.text, textAlign: "left" }]}>
                 {aiResponse}
               </Text>
             </View>
@@ -1138,13 +1138,13 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
               <View style={{ flex: 1, gap: 4 }}>
                 <Text style={[vmStyles.micDeniedText, { color: colors.text }]}>
                   {Platform.OS === "web"
-                    ? (language === "ar" ? "الميكروفون محجوب في هذه النافذة" : "Microphone blocked in this preview")
-                    : (language === "ar" ? "الميكروفون محجوب" : "Microphone blocked")}
+                    ? "Microphone blocked in this preview"
+                    : "Microphone blocked"}
                 </Text>
                 <Text style={[vmStyles.micDeniedSub, { color: colors.textSecondary }]}>
                   {Platform.OS === "web"
-                    ? (language === "ar" ? "افتح التطبيق في تبويب جديد للسماح بالميكروفون" : "Open in a new tab to allow microphone access")
-                    : (language === "ar" ? "اذهب إلى الإعدادات > نطق > ميكروفون" : "Go to Settings → Nutq → Microphone")}
+                    ? "Open in a new tab to allow microphone access"
+                    : "Go to Settings → Nutq → Microphone"}
                 </Text>
               </View>
               {Platform.OS === "web" && (
@@ -1171,13 +1171,13 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
             </Pressable>
             <TextInput
               style={[vmStyles.nativeInput, { color: colors.text }]}
-              placeholder={language === "ar" ? "أو اكتب رسالتك..." : "Or type your message..."}
+              placeholder={"Or type your message..."}
               placeholderTextColor={colors.textMuted}
               value={textInput}
               onChangeText={setTextInput}
               onSubmitEditing={handleTextSend}
               returnKeyType="send"
-              textAlign={isRTL ? "right" : "left"}
+              textAlign={"left"}
               editable={phase !== "processing" && phase !== "speaking"}
             />
           </View>
@@ -1185,7 +1185,7 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
           {phase === "done" && (
             <Pressable onPress={reset} style={[vmStyles.resetBtn, { borderColor: colors.border }]}>
               <Text style={[vmStyles.resetBtnText, { color: colors.textSecondary }]}>
-                {language === "ar" ? "محادثة جديدة" : "New conversation"}
+                {"New conversation"}
               </Text>
             </Pressable>
           )}
