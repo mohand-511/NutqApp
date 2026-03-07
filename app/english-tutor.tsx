@@ -42,7 +42,7 @@ const STAGES = [
 ];
 
 const STAGE_WELCOMES: Record<number, string> = {
-  1: "Hi! I'm Lia, your interviewer today. Let's practice for your big day. To start, could you tell me a little bit about yourself?",
+  1: "Welcome to the Job Interview phase! I'm Lia, your interviewer. Let's practice. First, can you introduce yourself and tell me about your background?",
   2: "Awesome! Now let's talk about your daily life. What does a typical day look like for you?",
   3: "Great! This phase is about questions. Try asking me something — anything you're curious about!",
   4: "I see! Let's practice a real-life scenario. Imagine you're at a restaurant. How would you order your meal?",
