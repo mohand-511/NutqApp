@@ -472,6 +472,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Personal AI Journey Generator ─────────────────────────────────────────
+  app.post("/api/generate-journey", async (req, res) => {
+    try {
+      const { goal, context, mode } = req.body;
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{
+          role: "user",
+          content: `Generate a personalized English/communication skill learning journey for this user.
+
+Goal: ${goal}
+Context/background: ${context || "Not provided"}
+Preferred practice mode: ${mode || "Both voice and text"}
+
+Create exactly 6 journey steps, progressing from easier to harder. Return ONLY valid JSON in this exact format:
+{"steps": [
+  {
+    "id": 1,
+    "title": "Arabic title (2-4 words)",
+    "titleEn": "English title (2-4 words)",
+    "desc": "Arabic short description (5-8 words)",
+    "descEn": "English short description (5-8 words)",
+    "icon": "ionicons-outline-name",
+    "xp": 50,
+    "lessons": 3,
+    "duration": "10 دقائق",
+    "durationEn": "10 min",
+    "skills": ["Skill 1", "Skill 2", "Skill 3"],
+    "tip": "A practical tip in English",
+    "color": "#2563EB",
+    "task": "Specific 1-2 sentence task description for the AI coaching session"
+  }
+]}
+
+Color options: #2563EB, #7C3AED, #06B6D4, #10B981, #F59E0B, #EF4444, #8B5CF6, #F97316 (vary them across steps)
+XP values: use 25, 50, 75, or 100 based on difficulty
+Icon options: chat-outline, mic-outline, person-outline, star-outline, book-outline, bulb-outline, trophy-outline, flame-outline, megaphone-outline, school-outline, rocket-outline, heart-outline`,
+        }],
+        max_tokens: 900,
+        temperature: 0.8,
+        response_format: { type: "json_object" },
+      });
+      const raw = response.choices[0]?.message?.content || '{"steps":[]}';
+      let parsed: any = {};
+      try { parsed = JSON.parse(raw); } catch {}
+      const steps = (parsed.steps || []).map((s: any, i: number) => ({ ...s, id: i + 1 }));
+      res.json({ steps });
+    } catch (error) {
+      console.error("Generate journey error:", error);
+      res.status(500).json({ error: "Failed to generate journey" });
+    }
+  });
+
+  // ── Personal Journey Task Coach (streaming) ────────────────────────────────
+  app.post("/api/journey-task", async (req, res) => {
+    try {
+      const { messages, stepTitle, stepTask, userGoal = "" } = req.body;
+
+      const systemPrompt = `You are an AI personal skill coach helping a user complete a specific learning task.
+
+User's Goal: ${userGoal}
+Current Task: "${stepTitle}"
+Task Description: ${stepTask}
+
+RULES:
+1. English ONLY. Never use Arabic.
+2. Start the session by briefly explaining the task and asking the first question.
+3. For every user response: validate their effort, give one tip, then guide them to the next micro-step.
+4. Keep all responses under 35 words. Short and voice-optimized.
+5. Use encouraging markers: "Great!", "Excellent!", "Perfect!", "Nice work!"
+6. Provide specific, actionable feedback — not generic praise.
+
+COMPLETION: When the user has successfully completed the task, end your response with [TASK_COMPLETE] on its own line.
+WEAK VOICE: If voice was quiet/unclear, include [WEAK_VOICE] on its own line with 2 tips.`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        stream: true,
+        max_tokens: 120,
+        temperature: 0.75,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (error) {
+      console.error("Journey task error:", error);
+      if (!res.headersSent) res.status(500).json({ error: "Task coach failed" });
+      else { res.write(`data: ${JSON.stringify({ error: "AI error" })}\n\n`); res.end(); }
+    }
+  });
+
   // ── Public Speaking Coach (streaming) ─────────────────────────────────────
   app.post("/api/speaking-coach", async (req, res) => {
     try {

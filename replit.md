@@ -36,7 +36,7 @@ app/
     goals.tsx              # 3-step onboarding: goal, level, time
   (tabs)/
     _layout.tsx            # NativeTabs (liquid glass iOS 26+) / Classic tabs
-    index.tsx              # Home - Gamified learning path + entry cards
+    index.tsx              # Home - Personal AI Journey + entry cards
     solif.tsx              # Free Talk AI chat ("سوالف")
     loyalty.tsx            # Points & Saudi partner rewards
     profile.tsx            # Profile, settings, achievements

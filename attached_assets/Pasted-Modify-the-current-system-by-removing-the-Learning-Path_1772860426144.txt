@@ -1,0 +1,93 @@
+Modify the current system by removing the "Learning Path" feature and replacing it with a "Personal AI Assistant Journey" system, while keeping the existing UI design, layout, colors, buttons, and visual style exactly the same. Do not break or redesign the interface.
+
+New Concept: Personal AI Assistant Journey
+
+Instead of a fixed learning path, the app should act as a personal AI assistant that guides the user through personalized tasks and challenges based on their goals.
+
+Core Features:
+
+1. Personal AI Assistant
+   When the user opens a skill or module (such as Public Speaking), the system activates an AI Assistant that interacts with the user through chat.
+
+The assistant should:
+
+* Ask the user about their goal.
+* Ask what they want to improve.
+* Suggest a personalized journey of tasks.
+
+Example questions:
+
+* What skill do you want to improve today?
+* Are you preparing for a presentation, meeting, or speech?
+* Do you prefer practicing with voice or writing?
+
+2. Personal Journey System
+   Instead of fixed lessons, the AI generates a "Personal Journey".
+
+The journey contains multiple steps or challenges such as:
+
+* Record a short speech
+* Write a short idea
+* Practice speaking for 30 seconds
+* Improve voice clarity
+* Simulate answering audience questions
+
+The AI can dynamically adjust the journey based on user performance.
+
+3. Points and Rewards System
+   Each completed step in the personal journey gives the user points (XP).
+
+Example:
+Small task → +10 XP
+Medium task → +25 XP
+Major task → +50 XP
+
+XP points should appear in the same area where the current XP indicator exists.
+
+4. Journey Progress
+   The user must complete the current step before unlocking the next step.
+
+Display a simple progress indicator like:
+Step 2 of 7 completed.
+
+5. Voice and Text Interaction
+   The assistant must allow the user to interact using:
+
+* Voice input
+* Text input
+
+If the user records voice, the system should:
+
+* Convert speech to text
+* Analyze clarity and volume
+* Detect weak voice
+
+6. Weak Voice Detection
+   If the user's voice is too quiet or unclear, the assistant should provide corrective feedback.
+
+Example:
+"Your voice sounds a bit low. Try speaking louder and slower. Let's try again."
+
+Add a button:
+"Record Again"
+
+7. AI Feedback System
+   After every task, the assistant should give quick feedback:
+
+* What was good
+* What can be improved
+* Suggest the next challenge
+
+Example feedback:
+"Great job! Your pacing was clear. Next challenge: deliver a 45-second explanation of an idea."
+
+8. Maintain UI Stability
+   Important rules:
+
+* Do NOT change the current UI design.
+* Do NOT redesign existing cards, buttons, or layout.
+* Only replace the logic behind the Learning Path with the Personal AI Assistant Journey.
+* Keep the XP system visible.
+
+Final Goal:
+Transform the app into an AI-powered personal skill coach that guides users through personalized journeys, rewards them with XP points, and adapts challenges based on their progress.

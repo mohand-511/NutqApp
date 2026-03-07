@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
+  FlatList,
   Pressable,
   Platform,
   Modal,
@@ -33,21 +34,26 @@ import { useApp } from "@/context/AppContext";
 import { GridBackground } from "@/components/GridBackground";
 import { SaudiAvatar } from "@/components/Avatar";
 import { apiRequest, getApiUrl } from "@/lib/query-client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
-const STAGES = [
-  { id: 1, title: "المحادثة الأولى", titleEn: "First Conversation", desc: "أساسيات التواصل اليومي", descEn: "Daily communication basics", icon: "chatbubbles-outline", xp: 50, lessons: 3, duration: "10 دقائق", durationEn: "10 min", skills: ["التحية", "التعريف بالنفس", "الأسئلة الأساسية"], tip: "ركز على التحدث بثقة، الأخطاء جزء من التعلم!", color: "#2563EB" },
-  { id: 2, title: "الأسئلة والأجوبة", titleEn: "Q&A", desc: "مهارات الاستفسار والرد", descEn: "Inquiry and response skills", icon: "help-circle-outline", xp: 75, lessons: 4, duration: "15 دقيقة", durationEn: "15 min", skills: ["صياغة الأسئلة", "الردود المناسبة", "لغة الجسد"], tip: "اسأل أسئلة مفتوحة لتحفيز المحادثة", color: "#7C3AED" },
-  { id: 3, title: "تقديم النفس", titleEn: "Self Introduction", desc: "كيف تُقدم نفسك باحتراف", descEn: "Present yourself professionally", icon: "person-outline", xp: 60, lessons: 3, duration: "12 دقيقة", durationEn: "12 min", skills: ["المقدمة الشخصية", "ذكر الاهتمامات", "الانطباع الأول"], tip: "ابتسم وحافظ على التواصل البصري", color: "#06B6D4" },
-  { id: 4, title: "الجمل المركبة", titleEn: "Complex Sentences", desc: "بناء جمل أكثر تعقيداً ودقة", descEn: "Build complex, precise sentences", icon: "text-outline", xp: 100, lessons: 5, duration: "20 دقيقة", durationEn: "20 min", skills: ["روابط الجمل", "التعبير عن الرأي", "الصفات والأوصاف"], tip: "استخدم روابط مثل: لأن، لذلك، ومع ذلك", color: "#10B981" },
-  { id: 5, title: "المقابلة الوظيفية", titleEn: "Job Interview", desc: "حضّر نفسك للمقابلات المهنية", descEn: "Prepare for professional interviews", icon: "briefcase-outline", xp: 150, lessons: 6, duration: "30 دقيقة", durationEn: "30 min", skills: ["STAR Method", "نقاط القوة والضعف", "الأسئلة الصعبة"], tip: "استعد بأمثلة حقيقية من تجاربك", color: "#F59E0B" },
-  { id: 6, title: "النقاش والإقناع", titleEn: "Debate & Persuasion", desc: "فن الحجة والإقناع المؤثر", descEn: "The art of persuasive argument", icon: "mic-outline", xp: 120, lessons: 5, duration: "25 دقيقة", durationEn: "25 min", skills: ["بناء الحجج", "الرد على الاعتراضات", "لغة الإقناع"], tip: "استمع جيداً قبل أن ترد", color: "#EF4444" },
-  { id: 7, title: "الذكاء الاصطناعي", titleEn: "Artificial Intelligence", desc: "التحدث عن التقنية والمستقبل", descEn: "Talking about tech & the future", icon: "hardware-chip-outline", xp: 100, lessons: 4, duration: "20 دقيقة", durationEn: "20 min", skills: ["مصطلحات التقنية", "نقاش المستقبل", "الآراء التقنية"], tip: "لا تخف من التعبير عن رأيك في التقنية", color: "#8B5CF6" },
-  { id: 8, title: "الخطابة والعرض", titleEn: "Public Speaking", desc: "مهارات التقديم أمام الجمهور", descEn: "Presentation skills for any audience", icon: "podium-outline", xp: 150, lessons: 6, duration: "35 دقيقة", durationEn: "35 min", skills: ["بنية العرض", "لغة الجسد", "إدارة التوتر"], tip: "تدرب أمام المرآة أو سجّل نفسك", color: "#F97316" },
+const DEFAULT_STAGES = [
+  { id: 1, title: "المحادثة الأولى", titleEn: "First Conversation", desc: "أساسيات التواصل اليومي", descEn: "Daily communication basics", icon: "chatbubbles-outline", xp: 50, lessons: 3, duration: "10 دقائق", durationEn: "10 min", skills: ["التحية", "التعريف بالنفس", "الأسئلة الأساسية"], tip: "ركز على التحدث بثقة، الأخطاء جزء من التعلم!", color: "#2563EB", task: "Introduce yourself in English. Share your name, where you're from, and one hobby." },
+  { id: 2, title: "الأسئلة والأجوبة", titleEn: "Q&A", desc: "مهارات الاستفسار والرد", descEn: "Inquiry and response skills", icon: "help-circle-outline", xp: 75, lessons: 4, duration: "15 دقيقة", durationEn: "15 min", skills: ["صياغة الأسئلة", "الردود المناسبة", "لغة الجسد"], tip: "اسأل أسئلة مفتوحة لتحفيز المحادثة", color: "#7C3AED", task: "Ask 3 open-ended questions about daily life and answer follow-up questions from the coach." },
+  { id: 3, title: "تقديم النفس", titleEn: "Self Introduction", desc: "كيف تُقدم نفسك باحتراف", descEn: "Present yourself professionally", icon: "person-outline", xp: 60, lessons: 3, duration: "12 دقيقة", durationEn: "12 min", skills: ["المقدمة الشخصية", "ذكر الاهتمامات", "الانطباع الأول"], tip: "ابتسم وحافظ على التواصل البصري", color: "#06B6D4", task: "Give a 30-second professional self-introduction including your background and goals." },
+  { id: 4, title: "الجمل المركبة", titleEn: "Complex Sentences", desc: "بناء جمل أكثر تعقيداً ودقة", descEn: "Build complex, precise sentences", icon: "text-outline", xp: 100, lessons: 5, duration: "20 دقيقة", durationEn: "20 min", skills: ["روابط الجمل", "التعبير عن الرأي", "الصفات والأوصاف"], tip: "استخدم روابط مثل: لأن، لذلك، ومع ذلك", color: "#10B981", task: "Build 3 complex sentences using connectors like 'because', 'however', and 'therefore'." },
+  { id: 5, title: "المقابلة الوظيفية", titleEn: "Job Interview", desc: "حضّر نفسك للمقابلات المهنية", descEn: "Prepare for professional interviews", icon: "briefcase-outline", xp: 150, lessons: 6, duration: "30 دقيقة", durationEn: "30 min", skills: ["STAR Method", "نقاط القوة والضعف", "الأسئلة الصعبة"], tip: "استعد بأمثلة حقيقية من تجاربك", color: "#F59E0B", task: "Answer 'Tell me about yourself' and 'What is your biggest strength?' using the STAR method." },
+  { id: 6, title: "النقاش والإقناع", titleEn: "Debate & Persuasion", desc: "فن الحجة والإقناع المؤثر", descEn: "The art of persuasive argument", icon: "mic-outline", xp: 120, lessons: 5, duration: "25 دقيقة", durationEn: "25 min", skills: ["بناء الحجج", "الرد على الاعتراضات", "لغة الإقناع"], tip: "استمع جيداً قبل أن ترد", color: "#EF4444", task: "Make a persuasive argument on any topic and respond to two counterarguments." },
+  { id: 7, title: "الذكاء الاصطناعي", titleEn: "Artificial Intelligence", desc: "التحدث عن التقنية والمستقبل", descEn: "Talking about tech & the future", icon: "hardware-chip-outline", xp: 100, lessons: 4, duration: "20 دقيقة", durationEn: "20 min", skills: ["مصطلحات التقنية", "نقاش المستقبل", "الآراء التقنية"], tip: "لا تخف من التعبير عن رأيك في التقنية", color: "#8B5CF6", task: "Discuss your opinion on AI and technology in 60 seconds. Use at least 5 tech vocabulary words." },
+  { id: 8, title: "الخطابة والعرض", titleEn: "Public Speaking", desc: "مهارات التقديم أمام الجمهور", descEn: "Presentation skills for any audience", icon: "podium-outline", xp: 150, lessons: 6, duration: "35 دقيقة", durationEn: "35 min", skills: ["بنية العرض", "لغة الجسد", "إدارة التوتر"], tip: "تدرب أمام المرآة أو سجّل نفسك", color: "#F97316", task: "Deliver a 90-second speech on any topic with a strong opening, 2 key points, and a closing." },
 ];
 
-type Stage = typeof STAGES[0];
+type Stage = typeof DEFAULT_STAGES[0];
+
+const JOURNEY_STEPS_KEY = "ai_journey_steps_v1";
+const JOURNEY_COMPLETED_KEY = "ai_journey_completed_v1";
+const JOURNEY_GOAL_KEY = "ai_journey_goal_v1";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -59,21 +65,38 @@ export default function HomeScreen() {
   const [hintLoading, setHintLoading] = useState(false);
   const [wordOfDay, setWordOfDay] = useState<{ word: string; translation: string; pronunciation: string; example: string; tip: string } | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [journeySteps, setJourneySteps] = useState<Stage[]>(DEFAULT_STAGES);
+  const [completedJourneySteps, setCompletedJourneySteps] = useState<number[]>([]);
+  const [journeyGoal, setJourneyGoal] = useState("");
+  const [journeySetupOpen, setJourneySetupOpen] = useState(false);
+  const [activeTaskStep, setActiveTaskStep] = useState<Stage | null>(null);
 
   const isRTL = language === "ar";
   const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
   const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
-  const unlockedUpTo = completedStages.length + 1;
+  const journeyUnlockedUpTo = completedJourneySteps.length + 1;
 
   useEffect(() => {
     apiRequest("GET", "/api/word-of-day")
       .then((r) => r.json())
       .then(setWordOfDay)
       .catch(() => {});
+    (async () => {
+      try {
+        const [stepsRaw, compRaw, goalRaw] = await Promise.all([
+          AsyncStorage.getItem(JOURNEY_STEPS_KEY),
+          AsyncStorage.getItem(JOURNEY_COMPLETED_KEY),
+          AsyncStorage.getItem(JOURNEY_GOAL_KEY),
+        ]);
+        if (stepsRaw) setJourneySteps(JSON.parse(stepsRaw));
+        if (compRaw) setCompletedJourneySteps(JSON.parse(compRaw));
+        if (goalRaw) setJourneyGoal(goalRaw);
+      } catch {}
+    })();
   }, []);
 
   async function openStage(stage: Stage) {
-    if (stage.id > unlockedUpTo) return;
+    if (stage.id > journeyUnlockedUpTo) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setActiveStage(stage);
     setAiHint("");
@@ -84,6 +107,23 @@ export default function HomeScreen() {
       setAiHint(d.hint || "");
     } catch {}
     setHintLoading(false);
+  }
+
+  async function finishJourneyStep(stepId: number) {
+    const updated = [...completedJourneySteps, stepId].filter((v, i, a) => a.indexOf(v) === i);
+    setCompletedJourneySteps(updated);
+    await AsyncStorage.setItem(JOURNEY_COMPLETED_KEY, JSON.stringify(updated));
+    const step = journeySteps.find((s) => s.id === stepId);
+    await completeStage(stepId, step?.title, step?.titleEn);
+  }
+
+  async function saveGeneratedJourney(steps: Stage[], goal: string) {
+    setJourneySteps(steps);
+    setJourneyGoal(goal);
+    setCompletedJourneySteps([]);
+    await AsyncStorage.setItem(JOURNEY_STEPS_KEY, JSON.stringify(steps));
+    await AsyncStorage.setItem(JOURNEY_COMPLETED_KEY, JSON.stringify([]));
+    await AsyncStorage.setItem(JOURNEY_GOAL_KEY, goal);
   }
 
   async function finishStage() {
@@ -97,7 +137,7 @@ export default function HomeScreen() {
   }
 
   const dailyGoal = 3;
-  const dailyProgress = Math.min(completedStages.length, dailyGoal);
+  const dailyProgress = Math.min(completedJourneySteps.length, dailyGoal);
   const progressPct = dailyProgress / dailyGoal;
 
   const s = makeStyles(colors, isRTL, isDark);
@@ -276,14 +316,28 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
-        {/* Learning Path */}
+        {/* Personal AI Journey */}
         <View style={s.pathSection}>
           <View style={[s.pathHeaderRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setJourneySetupOpen(true); }}
+              style={s.journeyGenBtn}
+            >
+              <Ionicons name="sparkles-outline" size={13} color={colors.blueLight} />
+              <Text style={s.journeyGenBtnText}>{isRTL ? "تخصيص" : "Personalize"}</Text>
+            </Pressable>
             <View style={s.pathProgressBadge}>
-              <Text style={s.pathProgress}>{completedStages.length}/{STAGES.length}</Text>
+              <Text style={s.pathProgress}>{completedJourneySteps.length}/{journeySteps.length}</Text>
             </View>
-            <Text style={s.pathTitle}>{isRTL ? "مسار التعلم" : "Learning Path"}</Text>
+            <Text style={s.pathTitle}>{isRTL ? "رحلتي الشخصية" : "My AI Journey"}</Text>
           </View>
+
+          {journeyGoal ? (
+            <View style={s.journeyGoalBanner}>
+              <Ionicons name="flag-outline" size={13} color={colors.blueLight} />
+              <Text style={s.journeyGoalText} numberOfLines={1}>{journeyGoal}</Text>
+            </View>
+          ) : null}
 
           <View style={s.timeline}>
             <View style={[s.timelineLine, isRTL ? { left: 28 } : { right: 28 }]}>
@@ -295,11 +349,11 @@ export default function HomeScreen() {
               />
             </View>
 
-            {STAGES.map((stage, index) => {
-              const isCompleted = completedStages.includes(stage.id);
-              const isUnlocked = stage.id <= unlockedUpTo;
-              const isActive = stage.id === unlockedUpTo;
-              const isLast = index === STAGES.length - 1;
+            {journeySteps.map((stage, index) => {
+              const isCompleted = completedJourneySteps.includes(stage.id);
+              const isUnlocked = stage.id <= journeyUnlockedUpTo;
+              const isActive = stage.id === journeyUnlockedUpTo;
+              const isLast = index === journeySteps.length - 1;
               return (
                 <TimelineRow
                   key={stage.id}
@@ -433,27 +487,30 @@ export default function HomeScreen() {
 
                 <View style={s.sheetActions}>
                   <Pressable
-                    onPress={completedStages.includes(activeStage.id) ? () => setActiveStage(null) : finishStage}
+                    onPress={completedJourneySteps.includes(activeStage.id) ? () => setActiveStage(null) : () => {
+                      setActiveTaskStep(activeStage);
+                      setActiveStage(null);
+                    }}
                     disabled={stageLoading}
                     style={({ pressed }) => [s.mainBtn, pressed && { opacity: 0.85 }]}
                   >
                     <LinearGradient
-                      colors={completedStages.includes(activeStage.id) ? [colors.success, "#059669"] : [colors.blue, colors.purple]}
+                      colors={completedJourneySteps.includes(activeStage.id) ? [colors.success, "#059669"] : [colors.blue, colors.purple]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={s.mainBtnGrad}
                     >
                       {stageLoading ? (
                         <ActivityIndicator color="#fff" />
-                      ) : completedStages.includes(activeStage.id) ? (
+                      ) : completedJourneySteps.includes(activeStage.id) ? (
                         <>
                           <Ionicons name="checkmark-circle" size={20} color="#fff" />
                           <Text style={s.mainBtnText}>{isRTL ? "مكتملة" : "Completed"}</Text>
                         </>
                       ) : (
                         <>
-                          <Ionicons name="play-circle" size={20} color="#fff" />
-                          <Text style={s.mainBtnText}>{isRTL ? "ابدأ المرحلة" : "Start Stage"}</Text>
+                          <Ionicons name="hardware-chip-outline" size={20} color="#fff" />
+                          <Text style={s.mainBtnText}>{isRTL ? "تدرب مع AI" : "Practice with AI"}</Text>
                         </>
                       )}
                     </LinearGradient>
@@ -476,6 +533,36 @@ export default function HomeScreen() {
           isDark={isDark}
           isRTL={isRTL}
           language={language}
+        />
+      )}
+
+      {/* Journey Task Modal */}
+      {activeTaskStep && (
+        <JourneyTaskModal
+          step={activeTaskStep}
+          journeyGoal={journeyGoal}
+          colors={colors}
+          isDark={isDark}
+          isRTL={isRTL}
+          onComplete={async () => {
+            await finishJourneyStep(activeTaskStep.id);
+            setActiveTaskStep(null);
+          }}
+          onClose={() => setActiveTaskStep(null)}
+        />
+      )}
+
+      {/* Journey Setup Modal */}
+      {journeySetupOpen && (
+        <JourneySetupModal
+          colors={colors}
+          isDark={isDark}
+          isRTL={isRTL}
+          onSave={async (steps, goal) => {
+            await saveGeneratedJourney(steps, goal);
+            setJourneySetupOpen(false);
+          }}
+          onClose={() => setJourneySetupOpen(false)}
         />
       )}
     </GridBackground>
@@ -1225,6 +1312,389 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   );
 }
 
+function JourneyTaskModal({ step, journeyGoal, colors, isDark, isRTL, onComplete, onClose }: {
+  step: Stage;
+  journeyGoal: string;
+  colors: any;
+  isDark: boolean;
+  isRTL: boolean;
+  onComplete: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [streaming, setStreaming] = useState("");
+  const [isRecording, setIsRecording] = useState(false);
+  const [weakVoice, setWeakVoice] = useState(false);
+  const [taskDone, setTaskDone] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const listRef = useRef<any>(null);
+  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
+  const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+
+  useEffect(() => {
+    sendToAI([]);
+  }, []);
+
+  async function sendToAI(msgs: { role: string; content: string }[]) {
+    setIsSending(true);
+    setStreaming("");
+    setWeakVoice(false);
+    try {
+      const url = new URL("/api/journey-task", getApiUrl());
+      const res = await expoFetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: msgs, stepTitle: step.titleEn, stepTask: (step as any).task || step.descEn, userGoal: journeyGoal }),
+      });
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let full = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value);
+        for (const line of text.split("\n")) {
+          if (line.startsWith("data: ")) {
+            const payload = line.slice(6);
+            if (payload === "[DONE]") break;
+            try {
+              const obj = JSON.parse(payload);
+              if (obj.content) { full += obj.content; setStreaming(full); }
+            } catch {}
+          }
+        }
+      }
+      if (full.includes("[WEAK_VOICE]")) setWeakVoice(true);
+      if (full.includes("[TASK_COMPLETE]")) setTaskDone(true);
+      const cleaned = full.replace("[TASK_COMPLETE]", "").replace("[WEAK_VOICE]", "").trim();
+      const aiMsg = { role: "assistant", content: cleaned };
+      setMessages([...msgs, aiMsg]);
+      setStreaming("");
+    } catch {}
+    setIsSending(false);
+  }
+
+  async function handleSend(text: string) {
+    if (!text.trim() || isSending) return;
+    const userMsg = { role: "user", content: text.trim() };
+    const updated = [...messages, userMsg];
+    setMessages(updated);
+    setInput("");
+    await sendToAI(updated);
+  }
+
+  async function startRecording() {
+    try {
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      recordingRef.current = recording;
+      setIsRecording(true);
+    } catch {}
+  }
+
+  async function stopRecording() {
+    setIsRecording(false);
+    try {
+      await recordingRef.current?.stopAndUnloadAsync();
+      const uri = recordingRef.current?.getURI();
+      recordingRef.current = null;
+      if (!uri) return;
+      const b64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      const formData = new FormData();
+      formData.append("audio", { uri, name: "audio.m4a", type: "audio/m4a" } as any);
+      formData.append("language", "en");
+      const r = await apiRequest("POST", "/api/transcribe", formData);
+      const d = await r.json();
+      const transcript = d.text?.trim() || "";
+      if (!transcript || transcript.split(" ").length < 4) {
+        setWeakVoice(true);
+        return;
+      }
+      setWeakVoice(false);
+      await handleSend(transcript);
+    } catch {}
+  }
+
+  async function handleComplete() {
+    setCompleting(true);
+    await onComplete();
+    setCompleting(false);
+  }
+
+  const displayMessages = [...messages];
+  if (streaming) displayMessages.push({ role: "assistant", content: streaming });
+
+  return (
+    <Modal animationType="slide" transparent={false} visible onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: isDark ? "#0B0F1A" : "#F8FAFF" }}>
+        <View style={[jtStyles.header, { paddingTop: topPad + 10, backgroundColor: isDark ? "#0F1520" : "#fff" }]}>
+          <Pressable onPress={onClose} style={jtStyles.closeBtn}>
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
+          </Pressable>
+          <View style={jtStyles.headerCenter}>
+            <View style={[jtStyles.stepIcon, { backgroundColor: `${step.color}22` }]}>
+              <Ionicons name={step.icon as any} size={18} color={step.color} />
+            </View>
+            <Text style={[jtStyles.headerTitle, { color: colors.text }]} numberOfLines={1}>{step.titleEn}</Text>
+          </View>
+          <View style={[jtStyles.xpBadge, { backgroundColor: `${colors.gold}18` }]}>
+            <Ionicons name="star" size={12} color={colors.gold} />
+            <Text style={[jtStyles.xpText, { color: colors.gold }]}>+{step.xp}</Text>
+          </View>
+        </View>
+
+        <FlatList
+          ref={listRef}
+          data={displayMessages}
+          keyExtractor={(_, i) => String(i)}
+          contentContainerStyle={{ padding: 16, paddingBottom: botPad + 100 }}
+          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          ListEmptyComponent={<ActivityIndicator color={colors.blue} style={{ marginTop: 40 }} />}
+          renderItem={({ item }) => (
+            <View style={[
+              jtStyles.bubble,
+              item.role === "user"
+                ? [jtStyles.bubbleUser, { backgroundColor: colors.blue }]
+                : [jtStyles.bubbleAI, { backgroundColor: isDark ? "#1E2535" : "#F0F4FF", borderColor: isDark ? "#2A3450" : "#E2E8F0" }],
+            ]}>
+              <Text style={[jtStyles.bubbleText, { color: item.role === "user" ? "#fff" : colors.text }]}>{item.content}</Text>
+            </View>
+          )}
+        />
+
+        {weakVoice && (
+          <View style={[jtStyles.weakVoiceBar, { backgroundColor: isDark ? "#2A1F00" : "#FFF8E7", borderColor: "#F59E0B" }]}>
+            <Ionicons name="volume-low-outline" size={16} color="#F59E0B" />
+            <Text style={jtStyles.weakVoiceText}>Voice too quiet. Speak louder, from your diaphragm.</Text>
+            <Pressable
+              onPress={() => { setWeakVoice(false); startRecording(); }}
+              style={[jtStyles.recordAgainBtn, { backgroundColor: "#F59E0B" }]}
+            >
+              <Text style={jtStyles.recordAgainText}>Try Again</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {taskDone && (
+          <View style={[jtStyles.completeBar, { backgroundColor: isDark ? "#0A2A1A" : "#F0FFF6", borderColor: colors.success }]}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+            <Text style={[jtStyles.completeText, { color: colors.success }]}>Task complete! Well done!</Text>
+            <Pressable
+              onPress={handleComplete}
+              disabled={completing}
+              style={[jtStyles.claimBtn, { backgroundColor: colors.success }]}
+            >
+              {completing ? <ActivityIndicator color="#fff" size="small" /> : <Text style={jtStyles.claimBtnText}>Claim +{step.xp} XP</Text>}
+            </Pressable>
+          </View>
+        )}
+
+        <View style={[jtStyles.inputRow, { paddingBottom: botPad + 12, backgroundColor: isDark ? "#0F1520" : "#fff", borderTopColor: isDark ? "#1E2535" : "#E5EBF5" }]}>
+          <TextInput
+            style={[jtStyles.textInput, { color: colors.text, backgroundColor: isDark ? "#1E2535" : "#F0F4FF", borderColor: isDark ? "#2A3450" : "#D1D9ED" }]}
+            placeholder="Type your response..."
+            placeholderTextColor={colors.textMuted}
+            value={input}
+            onChangeText={setInput}
+            onSubmitEditing={() => handleSend(input)}
+            editable={!isSending}
+            returnKeyType="send"
+            multiline
+          />
+          <Pressable
+            onPress={isRecording ? stopRecording : startRecording}
+            disabled={isSending}
+            style={[jtStyles.micBtn, { backgroundColor: isRecording ? "#EF4444" : `${colors.blue}22` }]}
+          >
+            <Ionicons name={isRecording ? "stop" : "mic"} size={20} color={isRecording ? "#fff" : colors.blue} />
+          </Pressable>
+          <Pressable
+            onPress={() => handleSend(input)}
+            disabled={!input.trim() || isSending}
+            style={[jtStyles.sendBtn, { backgroundColor: input.trim() && !isSending ? colors.blue : `${colors.blue}30` }]}
+          >
+            <Ionicons name="send" size={16} color="#fff" />
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const jtStyles = StyleSheet.create({
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: "transparent", gap: 10 },
+  closeBtn: { padding: 4 },
+  headerCenter: { flex: 1, flexDirection: "row", alignItems: "center", gap: 8 },
+  stepIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 15, fontWeight: "600", flex: 1 },
+  xpBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  xpText: { fontSize: 12, fontWeight: "700" },
+  bubble: { maxWidth: "85%", borderRadius: 16, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: "transparent" },
+  bubbleUser: { alignSelf: "flex-end", borderBottomRightRadius: 4 },
+  bubbleAI: { alignSelf: "flex-start", borderBottomLeftRadius: 4 },
+  bubbleText: { fontSize: 15, lineHeight: 22 },
+  weakVoiceBar: { margin: 12, borderRadius: 12, borderWidth: 1, padding: 12, flexDirection: "row", alignItems: "center", gap: 8 },
+  weakVoiceText: { flex: 1, fontSize: 13, color: "#B45309" },
+  recordAgainBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  recordAgainText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  completeBar: { margin: 12, borderRadius: 12, borderWidth: 1.5, padding: 12, flexDirection: "row", alignItems: "center", gap: 8 },
+  completeText: { flex: 1, fontSize: 13, fontWeight: "600" },
+  claimBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  claimBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingTop: 10, borderTopWidth: 1, gap: 8 },
+  textInput: { flex: 1, borderRadius: 16, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, maxHeight: 90 },
+  micBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+  sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center" },
+});
+
+function JourneySetupModal({ colors, isDark, isRTL, onSave, onClose }: {
+  colors: any;
+  isDark: boolean;
+  isRTL: boolean;
+  onSave: (steps: Stage[], goal: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [goal, setGoal] = useState("");
+  const [context, setContext] = useState("");
+  const [mode, setMode] = useState("Both voice and text");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const topPad = insets.top + (Platform.OS === "web" ? 67 : 0);
+  const botPad = insets.bottom + (Platform.OS === "web" ? 34 : 0);
+
+  const modes = ["Voice practice", "Text practice", "Both voice and text"];
+
+  async function generate() {
+    if (!goal.trim()) { setError("Please describe your goal."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const r = await apiRequest("POST", "/api/generate-journey", { goal: goal.trim(), context: context.trim(), mode });
+      const d = await r.json();
+      if (!d.steps || d.steps.length === 0) throw new Error("No steps");
+      await onSave(d.steps, goal.trim());
+    } catch {
+      setError("Generation failed. Please try again.");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <Modal animationType="slide" transparent visible onRequestClose={onClose}>
+      <View style={jsStyles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[jsStyles.sheet, { backgroundColor: isDark ? "#0F1520" : "#fff", paddingBottom: botPad + 20 }]}>
+          <View style={jsStyles.handle} />
+          <View style={[jsStyles.titleRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <Pressable onPress={onClose} style={jsStyles.closeBtn}>
+              <Ionicons name="close" size={20} color={colors.textSecondary} />
+            </Pressable>
+            <View style={jsStyles.titleGroup}>
+              <Text style={[jsStyles.title, { color: colors.text }]}>{isRTL ? "خصّص رحلتك" : "Personalize Your Journey"}</Text>
+              <Text style={[jsStyles.subtitle, { color: colors.textSecondary }]}>{isRTL ? "أخبر AI عن هدفك" : "Tell the AI about your goal"}</Text>
+            </View>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false} keyboardShouldPersistTaps="handled">
+            <View style={jsStyles.field}>
+              <Text style={[jsStyles.label, { color: colors.textSecondary }]}>What skill do you want to improve? *</Text>
+              <TextInput
+                style={[jsStyles.input, { color: colors.text, backgroundColor: isDark ? "#1A2235" : "#F5F8FF", borderColor: isDark ? "#2A3450" : "#D1D9ED" }]}
+                placeholder="e.g. Job interview English, public speaking, daily conversation..."
+                placeholderTextColor={colors.textMuted}
+                value={goal}
+                onChangeText={(t) => { setGoal(t); setError(""); }}
+                multiline
+              />
+            </View>
+
+            <View style={jsStyles.field}>
+              <Text style={[jsStyles.label, { color: colors.textSecondary }]}>Your current level / context (optional)</Text>
+              <TextInput
+                style={[jsStyles.input, { color: colors.text, backgroundColor: isDark ? "#1A2235" : "#F5F8FF", borderColor: isDark ? "#2A3450" : "#D1D9ED" }]}
+                placeholder="e.g. Intermediate, preparing for a presentation next week..."
+                placeholderTextColor={colors.textMuted}
+                value={context}
+                onChangeText={setContext}
+                multiline
+              />
+            </View>
+
+            <View style={jsStyles.field}>
+              <Text style={[jsStyles.label, { color: colors.textSecondary }]}>Preferred practice mode</Text>
+              <View style={jsStyles.modeRow}>
+                {modes.map((m) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => setMode(m)}
+                    style={[jsStyles.modePill, mode === m && { backgroundColor: `${colors.blue}22`, borderColor: colors.blue }]}
+                  >
+                    <Text style={[jsStyles.modePillText, { color: mode === m ? colors.blue : colors.textSecondary }]}>{m}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {error ? <Text style={jsStyles.errorText}>{error}</Text> : null}
+
+            <Pressable
+              onPress={generate}
+              disabled={loading}
+              style={({ pressed }) => [jsStyles.generateBtn, pressed && { opacity: 0.85 }]}
+            >
+              <LinearGradient
+                colors={[colors.blue, colors.purple]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={jsStyles.generateBtnGrad}
+              >
+                {loading ? (
+                  <>
+                    <ActivityIndicator color="#fff" size="small" />
+                    <Text style={jsStyles.generateBtnText}>Generating your journey...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="sparkles-outline" size={18} color="#fff" />
+                    <Text style={jsStyles.generateBtnText}>Generate My Journey</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const jsStyles = StyleSheet.create({
+  overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "#00000050" },
+  sheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 12, maxHeight: "90%" },
+  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#8888", alignSelf: "center", marginBottom: 16 },
+  titleRow: { alignItems: "center", marginBottom: 24, gap: 10 },
+  titleGroup: { flex: 1 },
+  closeBtn: { padding: 4 },
+  title: { fontSize: 18, fontWeight: "700" },
+  subtitle: { fontSize: 13, marginTop: 2 },
+  field: { marginBottom: 18 },
+  label: { fontSize: 13, fontWeight: "500", marginBottom: 8 },
+  input: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, minHeight: 58 },
+  modeRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  modePill: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: "#8884" },
+  modePillText: { fontSize: 13, fontWeight: "500" },
+  errorText: { color: "#EF4444", fontSize: 13, marginBottom: 12, textAlign: "center" },
+  generateBtn: { marginTop: 4, marginBottom: 16 },
+  generateBtnGrad: { borderRadius: 16, paddingVertical: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  generateBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+});
+
 function makeStyles(colors: any, isRTL: boolean, isDark: boolean) {
   const glassCard = isDark
     ? { backgroundColor: "rgba(20,20,42,0.75)", borderColor: "rgba(255,255,255,0.08)" }
@@ -1273,10 +1743,14 @@ function makeStyles(colors: any, isRTL: boolean, isDark: boolean) {
     aiCardChevron: { opacity: 0.5 },
 
     pathSection: { paddingHorizontal: 20 },
-    pathHeaderRow: { alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
-    pathTitle: { fontSize: 20, fontFamily: "Cairo_700Bold", color: colors.text },
+    pathHeaderRow: { alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+    pathTitle: { fontSize: 20, fontFamily: "Cairo_700Bold", color: colors.text, flex: 1 },
     pathProgressBadge: { backgroundColor: colors.backgroundCard, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: colors.cardBorder },
     pathProgress: { fontSize: 13, fontFamily: "Cairo_600SemiBold", color: colors.textSecondary },
+    journeyGenBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${colors.blueLight}12`, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: `${colors.blueLight}25` },
+    journeyGenBtnText: { fontSize: 12, color: colors.blueLight, fontWeight: "600" },
+    journeyGoalBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: isDark ? `${colors.blue}14` : `${colors.blue}0A`, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginBottom: 16, borderWidth: 1, borderColor: `${colors.blue}20` },
+    journeyGoalText: { flex: 1, fontSize: 12, color: colors.textSecondary, fontStyle: "italic" },
 
     timeline: { position: "relative", gap: 0 },
     timelineLine: { position: "absolute", top: 28, bottom: 28, width: 2, overflow: "hidden" },
