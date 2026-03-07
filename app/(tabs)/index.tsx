@@ -26,6 +26,7 @@ import * as Haptics from "expo-haptics";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import { fetch as expoFetch } from "expo/fetch";
+import * as Speech from "expo-speech";
 import { router } from "expo-router";
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
@@ -688,6 +689,24 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
   const nativeFetch: typeof globalThis.fetch =
     typeof window !== "undefined" ? window.fetch.bind(window) : globalThis.fetch;
 
+  async function speakWithSpeechFallback(text: string) {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      allowsRecordingIOS: false,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+    setPhaseSync("speaking");
+    Speech.speak(text.slice(0, 500), {
+      language: "en-US",
+      rate: 0.95,
+      onDone: () => setPhaseSync("done"),
+      onError: () => setPhaseSync("done"),
+      onStopped: () => setPhaseSync("done"),
+    });
+  }
+
   async function speakText(text: string) {
     if (!text.trim()) { setPhaseSync("done"); return; }
     try {
@@ -698,7 +717,17 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: text.slice(0, 500), voice: "shimmer" }),
         });
-        if (!res.ok) { setPhaseSync("done"); return; }
+        if (!res.ok) {
+          // Web fallback: browser speechSynthesis via expo-speech
+          setPhaseSync("speaking");
+          Speech.speak(text.slice(0, 500), {
+            language: "en-US",
+            rate: 0.95,
+            onDone: () => setPhaseSync("done"),
+            onError: () => setPhaseSync("done"),
+          });
+          return;
+        }
         const arrayBuf = await res.arrayBuffer();
         const blob = new Blob([arrayBuf], { type: "audio/mpeg" });
         const blobUrl = URL.createObjectURL(blob);
@@ -723,17 +752,17 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
           tmpUri
         );
         if (dlRes.status !== 200) {
-          // Fallback: POST → base64 save
-          const postRes = await fetch(`${baseUrl}api/tts`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: text.slice(0, 500), voice: "shimmer" }),
-          });
-          if (!postRes.ok) { setPhaseSync("done"); return; }
-          const b64 = await postRes.text();
-          await FileSystem.writeAsStringAsync(tmpUri, b64, { encoding: FileSystem.EncodingType.Base64 });
+          // Native fallback: expo-speech (device TTS via main speaker)
+          await speakWithSpeechFallback(text);
+          return;
         }
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, allowsRecordingIOS: false });
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          allowsRecordingIOS: false,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
         if (nativeSoundRef.current) {
           try { await nativeSoundRef.current.unloadAsync(); } catch {}
           nativeSoundRef.current = null;
@@ -750,7 +779,8 @@ function VoiceChatModal({ onClose, colors, isDark, isRTL, language }: {
         });
       }
     } catch {
-      setPhaseSync("done");
+      // Final fallback: always ensure some audio plays
+      await speakWithSpeechFallback(text);
     }
   }
 

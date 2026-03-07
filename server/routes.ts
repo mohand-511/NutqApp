@@ -147,13 +147,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── TTS — Text to Speech (OpenAI) ────────────────────────────────────────
+  // ── TTS — Text to Speech (OpenAI direct — bypasses Replit proxy) ──────────
   app.post("/api/tts", async (req, res) => {
     try {
       const { text, voice = "shimmer" } = req.body;
       if (!text) return res.status(400).json({ error: "text required" });
 
-      const mp3 = await openai.audio.speech.create({
+      const mp3 = await openaiDirect.audio.speech.create({
         model: "tts-1",
         voice,
         input: text.slice(0, 500),
@@ -175,7 +175,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const text = String(req.query.text || "").slice(0, 500);
       if (!text) return res.status(400).json({ error: "text required" });
 
-      const mp3 = await openai.audio.speech.create({
+      const mp3 = await openaiDirect.audio.speech.create({
         model: "tts-1",
         voice: "shimmer",
         input: text,
