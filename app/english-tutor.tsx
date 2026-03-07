@@ -26,6 +26,7 @@ import { fetch } from "expo/fetch";
 import { router } from "expo-router";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
+import * as Speech from "expo-speech";
 import { useTheme } from "@/context/ThemeContext";
 import { useApp } from "@/context/AppContext";
 import { LiaAvatar } from "@/components/Avatar";
@@ -99,13 +100,12 @@ export default function EnglishTutorScreen() {
 
   const inputRef = useRef<TextInput>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
 
   const c = useStyles(colors, isDark);
 
   useEffect(() => {
     return () => {
-      soundRef.current?.unloadAsync().catch(() => {});
+      Speech.stop().catch(() => {});
     };
   }, []);
 
@@ -122,23 +122,16 @@ export default function EnglishTutorScreen() {
   const playTts = useCallback(async (text: string) => {
     if (!autoSpeak) return;
     try {
-      const baseUrl = getApiUrl();
-      if (Platform.OS === "web") {
-        const audio = new (window as any).Audio(`${baseUrl}api/tts-get?text=${encodeURIComponent(text.slice(0, 300))}`);
-        audio.play().catch(() => {});
-      } else {
-        await soundRef.current?.unloadAsync().catch(() => {});
-        soundRef.current = null;
-        const url = `${baseUrl}api/tts-get?text=${encodeURIComponent(text.slice(0, 300))}`;
-        const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true });
-        soundRef.current = sound;
-        sound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.didJustFinish) {
-            setIsSpeaking(false);
-            sound.unloadAsync().catch(() => {});
-          }
-        });
-      }
+      await Speech.stop();
+      setIsSpeaking(true);
+      Speech.speak(text.slice(0, 500), {
+        language: "en-US",
+        rate: 0.95,
+        pitch: 1.05,
+        onDone: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+        onStopped: () => setIsSpeaking(false),
+      });
     } catch {
       setIsSpeaking(false);
     }
@@ -285,6 +278,7 @@ export default function EnglishTutorScreen() {
         const uri = recordingRef.current?.getURI();
         recordingRef.current = null;
         setIsRecording(false);
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
         if (!uri) return;
 
         const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });

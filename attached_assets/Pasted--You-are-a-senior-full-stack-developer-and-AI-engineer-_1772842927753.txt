@@ -1,0 +1,64 @@
+}
+You are a senior full-stack developer and AI engineer.
+
+Fix the voice conversation feature in my AI chat page.
+
+Problem:
+The microphone button does not record audio and the AI does not speak responses.
+
+Your task is to implement a fully working Voice Conversation System inside the existing chat interface WITHOUT breaking the current UI design.
+
+Requirements:
+
+1. Microphone Recording
+When the user presses the microphone button:
+
+- Request microphone permission.
+- Start recording audio from the device.
+- Convert speech to text using Speech Recognition.
+- Automatically insert the recognized text as the user's message in the chat.
+
+2. Speech-to-Text
+Implement speech recognition so the user can speak naturally.
+
+Requirements:
+- Language: English (en-US)
+- Continuous listening until the user stops speaking.
+- Handle errors like permission denied or no microphone.
+
+3. Send Message to AI
+Once speech is converted to text:
+
+- Send the text to the AI conversation API.
+- Wait for the AI response.
+- Display the AI message in the chat bubble.
+
+4. AI Voice Response
+After the AI message appears:
+
+- Convert the AI text response to speech.
+- Play the voice automatically.
+
+Use Text-to-Speech so the AI speaks like a tutor.
+
+5. Chat Behavior
+The AI must act as a friendly English tutor.
+
+System prompt:
+
+"You are Lia, a friendly English tutor helping users practice English speaking. 
+Encourage them, correct mistakes politely, and ask simple conversation questions."
+
+6. UI Rules
+Do NOT modify the existing layout.
+Do NOT change colors, spacing, or typography.
+Only add functionality to the microphone button and AI responses.
+
+7. UX Improvements
+- Show a listening indicator when recording.
+- Show a typing indicator when AI is thinking.
+- Automatically scroll chat to the newest message.
+- Handle microphone permission errors gracefully.
+
+Goal:
+Create a smooth voice conversation experience where the user can tap the microphone, speak, and hear the AI respond naturally
