@@ -10,6 +10,10 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+const openaiDirect = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
 const SYSTEM_PROMPT_AR = `أنت مساعد تعليمي ذكي في تطبيق "نطق" لتعلم اللغة والتواصل. 
 اسمك هو "نطق AI" وأنت متخصص في:
 - تطوير مهارات التحدث والمحادثة
@@ -184,15 +188,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const { audio, mimeType = "audio/m4a", language = "ar" } = req.body;
     if (!audio) return res.status(400).json({ error: "audio required" });
 
-    const langLabel = language === "ar" ? "Arabic" : "English";
+    // Primary: Whisper via direct OpenAI API key (bypasses Replit proxy)
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const buffer = Buffer.from(audio, "base64");
+        const ext = mimeType.includes("m4a") || mimeType.includes("mp4") ? "m4a"
+          : mimeType.includes("ogg") ? "ogg"
+          : mimeType.includes("wav") ? "wav"
+          : "webm";
+        const file = new File([buffer], `audio.${ext}`, { type: mimeType });
+        const transcription = await openaiDirect.audio.transcriptions.create({
+          file,
+          model: "whisper-1",
+          language: language === "ar" ? "ar" : "en",
+        });
+        if (transcription.text?.trim()) {
+          console.log("Whisper STT success:", transcription.text.slice(0, 60));
+          return res.json({ text: transcription.text.trim() });
+        }
+      } catch (e: any) {
+        console.log("Whisper direct STT failed:", e?.message?.slice(0, 120));
+      }
+    }
 
-    // Approach 1: GPT-4o audio-preview via chat completions
+    // Fallback: GPT-4o audio-preview via proxy (may not be available)
     try {
       const fmt = mimeType.includes("m4a") || mimeType.includes("mp4") ? "mp4"
         : mimeType.includes("ogg") ? "ogg"
         : mimeType.includes("wav") ? "wav"
         : "webm";
-
       const response = await (openai.chat.completions.create as any)({
         model: "gpt-4o-audio-preview",
         modalities: ["text"],
@@ -200,30 +224,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           role: "user",
           content: [
             { type: "input_audio", input_audio: { data: audio, format: fmt } },
-            { type: "text", text: `Transcribe the spoken ${langLabel} words exactly as heard. Reply ONLY with the transcription, no extra text.` },
+            { type: "text", text: `Transcribe the spoken ${language === "ar" ? "Arabic" : "English"} words exactly. Reply ONLY with the transcription.` },
           ],
         }],
       });
       const text: string = response.choices?.[0]?.message?.content ?? "";
       if (text.trim()) return res.json({ text: text.trim() });
     } catch (e: any) {
-      console.log("GPT-4o-audio STT attempt failed:", e?.message?.slice(0, 120));
-    }
-
-    // Approach 2: Whisper transcriptions endpoint
-    try {
-      const buffer = Buffer.from(audio, "base64");
-      const ext = mimeType.includes("m4a") || mimeType.includes("mp4") ? "m4a"
-        : mimeType.includes("ogg") ? "ogg" : "webm";
-      const file = new File([buffer], `audio.${ext}`, { type: mimeType });
-      const transcription = await openai.audio.transcriptions.create({
-        file,
-        model: "whisper-1",
-        language: language === "ar" ? "ar" : "en",
-      });
-      if (transcription.text?.trim()) return res.json({ text: transcription.text.trim() });
-    } catch (e: any) {
-      console.log("Whisper STT attempt failed:", e?.message?.slice(0, 120));
+      console.log("GPT-4o-audio STT fallback failed:", e?.message?.slice(0, 120));
     }
 
     res.status(503).json({ error: "stt_unavailable" });
