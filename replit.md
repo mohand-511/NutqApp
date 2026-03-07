@@ -101,6 +101,18 @@ components/
 - `POST /api/coaching-tip` — AI coaching message
 - `GET /api/word-of-day` — AI-generated word
 
+## Public Speaking Coach (app/public-speaking.tsx)
+A dedicated AI public speaking training screen with 40 progressive stages:
+- **40 structured stages**: 4 categories — Foundations, Core Skills, Practice Methods, Advanced Delivery
+- **Level detection**: AI asks 3 diagnostic questions → classifies as Beginner/Intermediate/Advanced (persisted via AsyncStorage)
+- **Stage progression**: Locked until current stage is complete (AsyncStorage: `ps_completed_stages_v1`)
+- **AI Coach chat**: SSE streaming via `/api/speaking-coach`; coach validates, corrects, and advances per turn
+- **Voice input**: expo-av recording → Whisper STT → voice weakness detection (word count < 4)
+- **Weak voice alert**: Shows amber warning card + "Record Again" button with tips on volume/posture/diaphragm
+- **Stage completion**: AI sends `[STAGE_COMPLETE]` marker → stage unlocked, 20 points awarded
+- **Auto TTS**: Coach responses read aloud via expo-speech (toggleable)
+- **Entry point**: "Public Speaking Coach" cyan card on Home screen
+
 ## English Tutor – Lia (app/english-tutor.tsx)
 A dedicated AI English conversation screen:
 - **AI persona**: Lia — friendly English tutor with encouraging, corrective style

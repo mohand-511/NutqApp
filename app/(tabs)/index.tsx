@@ -246,6 +246,36 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
+        {/* Public Speaking Coach Card */}
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/public-speaking"); }}
+          style={({ pressed }) => [s.aiCard, pressed && { opacity: 0.88 }]}
+          testID="home-speaking-btn"
+        >
+          <LinearGradient
+            colors={isDark ? ["#0891B228", "#06B6D418"] : ["#0891B218", "#06B6D408"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+          />
+          <View style={[s.aiCardInner, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <View style={[s.aiCardChevron, { transform: [{ scaleX: isRTL ? 1 : -1 }] }]}>
+              <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+            </View>
+            <View style={s.aiCardText}>
+              <Text style={[s.aiCardTitle, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "مدرب الخطابة العامة" : "Public Speaking Coach"}
+              </Text>
+              <Text style={[s.aiCardSub, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "40 مرحلة مع مدرب AI لتطوير مهارة الخطابة" : "40 stages with AI Coach to master speaking"}
+              </Text>
+            </View>
+            <View style={[s.aiCardIcon, { backgroundColor: "#0891B222", borderColor: "#0891B240" }]}>
+              <Ionicons name="megaphone-outline" size={22} color="#0891B2" />
+            </View>
+          </View>
+        </Pressable>
+
         {/* Learning Path */}
         <View style={s.pathSection}>
           <View style={[s.pathHeaderRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>

@@ -1,0 +1,108 @@
+Build an interactive AI learning system inside the existing mobile app without changing or breaking the current UI design. The colors, layout, buttons, spacing, and visual identity must remain exactly the same.
+
+Core idea:
+When a user enters a learning stage such as "Public Speaking and Presentation", an AI Coach chat appears inside the same page or as a small floating chat window.
+
+AI Chat responsibilities:
+
+* Ask the learner short questions to determine their skill level.
+* Allow the user to answer either by voice or by text.
+* Analyze the response intelligently.
+
+Level detection system:
+The AI asks questions like:
+
+* Do you have experience speaking in front of an audience?
+* What makes you nervous during presentations?
+* Have you ever presented an idea publicly?
+
+Based on the answers, the system classifies the learner as:
+Beginner – Intermediate – Advanced.
+
+Stage progression system:
+
+* The learner cannot unlock the next stage until completing the current one.
+* Every stage includes a practical task.
+* After completing the task, the AI evaluates the performance.
+
+Example tasks:
+
+* Record a short speech.
+* Write an idea for a presentation.
+* Deliver a 30-second talk.
+
+Voice analysis system:
+If the user responds with voice, the system must:
+
+1. Convert speech to text (Speech-to-Text).
+2. Analyze voice clarity.
+3. Detect weak or low voice volume.
+4. Provide instant improvement suggestions.
+
+If weak voice is detected, the AI should:
+
+* Suggest increasing voice volume.
+* Suggest speaking slower.
+* Suggest proper posture while speaking.
+* Provide a quick corrective exercise.
+
+Example AI feedback:
+"It sounds like your voice is a bit low. Try speaking from your diaphragm and increase your volume slightly. Let's try recording again."
+
+The system must include a button:
+"Record Again"
+
+Add 40 structured learning plans inside the system:
+
+1. Basics of standing in front of an audience
+2. Overcoming fear of public speaking
+3. Managing stage anxiety
+4. Creating a strong opening
+5. Organizing ideas clearly
+6. Basic body language
+7. Using hand gestures effectively
+8. Eye contact techniques
+9. Controlling voice tone
+10. Speaking clearly
+11. Using storytelling in speeches
+12. Persuasion techniques
+13. Explaining complex ideas simply
+14. Managing presentation time
+15. Engaging the audience
+16. Handling questions confidently
+17. Ending a presentation strongly
+18. Delivering a short speech
+19. Delivering a one-minute speech
+20. Delivering a three-minute speech
+21. Using slides effectively
+22. Avoiding reading from slides
+23. Practicing with camera recording
+24. Practicing in front of a mirror
+25. Self-performance analysis
+26. Building stage presence
+27. Controlling speaking speed
+28. Eliminating filler words
+29. Improving pronunciation
+30. Breath control while speaking
+31. Building a full speech
+32. Delivering an inspiring story
+33. Presenting a project idea
+34. Teaching a concept clearly
+35. Persuasive presentation practice
+36. Motivational speech training
+37. Stage simulation practice
+38. Real audience simulation
+39. Final public speaking test
+40. Graduation project: Professional presentation
+
+Important rules:
+
+* Do NOT modify the existing UI design.
+* Use a lightweight AI chat component that fits the current layout.
+* Support both voice and text input.
+* Automatically analyze voice recordings.
+* Detect weak voice and provide corrections.
+* Lock stage progression until tasks are completed.
+
+Final goal:
+Transform the app into an AI-powered personal public speaking coach that guides the learner step-by-step until they become a confident speaker.

@@ -472,6 +472,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Public Speaking Coach (streaming) ─────────────────────────────────────
+  app.post("/api/speaking-coach", async (req, res) => {
+    try {
+      const { messages, stageName, stageTask, userLevel = "unknown" } = req.body;
+
+      const assessmentBlock = userLevel === "unknown"
+        ? `LEVEL ASSESSMENT MODE: Ask exactly 3 short diagnostic questions, ONE at a time, to determine the user's level.
+Questions to ask in order:
+1. "Have you ever spoken in front of an audience? Tell me briefly."
+2. "What makes you most nervous when speaking publicly?"
+3. "Have you given a prepared speech or presentation before? How did it go?"
+After their third answer, output EXACTLY one of these tags on its own line: [LEVEL:Beginner] or [LEVEL:Intermediate] or [LEVEL:Advanced]. Then begin coaching.`
+        : `User Level: ${userLevel}. Tailor your coaching to this level.`;
+
+      const systemPrompt = `You are "Coach Lia," an expert AI Public Speaking Coach.
+Current Stage: ${stageName}
+Stage Task: ${stageTask}
+
+${assessmentBlock}
+
+COACHING RULES:
+1. English ONLY. Never use Arabic.
+2. Validate: Start every response with brief positive feedback.
+3. Correct: Give one specific improvement tip per response.
+4. Progress: End with ONE clear instruction or question.
+5. Voice-First: Keep ALL responses under 35 words. Short. Punchy. Clear.
+6. Use natural markers: "Great!", "Excellent!", "I see," "Perfect!"
+
+VOICE FEEDBACK: If the user's voice recording was too quiet or unclear, include [WEAK_VOICE] on its own line, then give 2 quick tips: increase volume and speak from the diaphragm.
+
+STAGE COMPLETION: When the user successfully completes the stage task, end your response with [STAGE_COMPLETE] on its own line.`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        stream: true,
+        max_tokens: 120,
+        temperature: 0.75,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (error) {
+      console.error("Speaking coach error:", error);
+      if (!res.headersSent) res.status(500).json({ error: "Coach failed" });
+      else { res.write(`data: ${JSON.stringify({ error: "AI error" })}\n\n`); res.end(); }
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
