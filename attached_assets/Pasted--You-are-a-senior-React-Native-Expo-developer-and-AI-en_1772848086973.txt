@@ -1,0 +1,78 @@
+}
+You are a senior React Native + Expo developer and AI engineer.
+
+IMPORTANT RULE (VERY IMPORTANT):
+You must NOT change the existing UI design of the application under any circumstances.
+
+Do NOT modify:
+- layout
+- colors
+- fonts
+- spacing
+- styling
+- UI components
+- screen structure
+- navigation
+- visual appearance
+
+You are ONLY allowed to add functionality and logic behind the existing interface.
+
+If any feature requires UI change, reuse the existing components instead of creating new designs.
+
+TASK:
+
+Fix and implement a fully working AI voice conversation system in the existing chat page.
+
+The application is built with Expo and tested using Expo Go.
+
+FUNCTIONALITY TO ADD:
+
+1. Microphone Recording  
+Use expo-av to connect the microphone button to real voice recording.
+
+Flow:
+User presses microphone button  
+→ request microphone permission  
+→ start recording  
+→ user speaks  
+→ stop recording  
+
+2. Speech To Text  
+Send the recorded audio file to OpenAI Whisper API to convert speech into text.
+
+Insert the recognized text as the user's message in the chat.
+
+3. AI Conversation  
+Send the message to OpenAI chat API.
+
+System prompt:
+
+"You are Lia, a friendly English tutor helping users practice English conversation. 
+Keep responses short, natural, and encouraging. Ask questions to continue the conversation."
+
+Display the AI response in the existing chat bubbles.
+
+4. AI Voice Response  
+Use expo-speech to convert the AI text response into speech and play it automatically.
+
+5. User Experience  
+
+Add only logic indicators without redesigning UI:
+
+- Listening state when recording
+- AI thinking state
+- Auto scroll chat
+
+6. Libraries to use
+
+expo-av  
+expo-speech  
+
+7. Final Goal
+
+Create a working AI conversation system similar to Duolingo conversation mode where the user can speak with the AI tutor.
+
+REMEMBER AGAIN:
+
+You must NOT change the design, layout, or styling of the application.
+Only implement the backend logic and functionality

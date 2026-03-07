@@ -114,9 +114,16 @@ export default function EnglishTutorScreen() {
 
   const changeStage = useCallback((stageId: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (autoStopTimerRef.current) { clearTimeout(autoStopTimerRef.current); autoStopTimerRef.current = null; }
+    recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+    recordingRef.current = null;
+    Speech.stop().catch(() => {});
+    setMicState("idle");
+    setMicBanner("");
     setActiveStage(stageId);
     setSuggestions([]);
     setPronunciationFeedback(null);
+    setIsSpeaking(false);
     setMessages([
       { id: uid(), text: STAGE_WELCOMES[stageId], role: "assistant", timestamp: Date.now() },
     ]);
