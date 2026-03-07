@@ -179,28 +179,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ── STT — Speech to Text via OpenAI Whisper ──────────────────────────────
+  // ── STT — Speech to Text ──────────────────────────────────────────────────
   app.post("/api/stt", async (req, res) => {
+    const { audio, mimeType = "audio/m4a", language = "ar" } = req.body;
+    if (!audio) return res.status(400).json({ error: "audio required" });
+
+    const langLabel = language === "ar" ? "Arabic" : "English";
+
+    // Approach 1: GPT-4o audio-preview via chat completions
     try {
-      const { audio, mimeType = "audio/webm", language = "ar" } = req.body;
-      if (!audio) return res.status(400).json({ error: "audio required" });
+      const fmt = mimeType.includes("m4a") || mimeType.includes("mp4") ? "mp4"
+        : mimeType.includes("ogg") ? "ogg"
+        : mimeType.includes("wav") ? "wav"
+        : "webm";
 
+      const response = await (openai.chat.completions.create as any)({
+        model: "gpt-4o-audio-preview",
+        modalities: ["text"],
+        messages: [{
+          role: "user",
+          content: [
+            { type: "input_audio", input_audio: { data: audio, format: fmt } },
+            { type: "text", text: `Transcribe the spoken ${langLabel} words exactly as heard. Reply ONLY with the transcription, no extra text.` },
+          ],
+        }],
+      });
+      const text: string = response.choices?.[0]?.message?.content ?? "";
+      if (text.trim()) return res.json({ text: text.trim() });
+    } catch (e: any) {
+      console.log("GPT-4o-audio STT attempt failed:", e?.message?.slice(0, 120));
+    }
+
+    // Approach 2: Whisper transcriptions endpoint
+    try {
       const buffer = Buffer.from(audio, "base64");
-      // Node 20+ has global File; otherwise fall back to a named buffer trick
-      const ext = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";
+      const ext = mimeType.includes("m4a") || mimeType.includes("mp4") ? "m4a"
+        : mimeType.includes("ogg") ? "ogg" : "webm";
       const file = new File([buffer], `audio.${ext}`, { type: mimeType });
-
       const transcription = await openai.audio.transcriptions.create({
         file,
         model: "whisper-1",
         language: language === "ar" ? "ar" : "en",
       });
-
-      res.json({ text: transcription.text });
-    } catch (error: any) {
-      console.error("STT error:", error?.message || error);
-      res.status(500).json({ error: "Transcription failed" });
+      if (transcription.text?.trim()) return res.json({ text: transcription.text.trim() });
+    } catch (e: any) {
+      console.log("Whisper STT attempt failed:", e?.message?.slice(0, 120));
     }
+
+    res.status(503).json({ error: "stt_unavailable" });
   });
 
   // ── User Settings ─────────────────────────────────────────────────────────

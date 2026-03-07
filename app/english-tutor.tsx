@@ -91,8 +91,8 @@ export default function EnglishTutorScreen() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [micError, setMicError] = useState("");
+  const [micState, setMicState] = useState<"idle" | "recording" | "processing" | "unavailable">("idle");
+  const [micBanner, setMicBanner] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [pronunciationFeedback, setPronunciationFeedback] = useState<PronunciationFeedback | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(true);
@@ -100,12 +100,15 @@ export default function EnglishTutorScreen() {
 
   const inputRef = useRef<TextInput>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const c = useStyles(colors, isDark);
 
   useEffect(() => {
     return () => {
       Speech.stop().catch(() => {});
+      if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
+      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
     };
   }, []);
 
@@ -244,83 +247,134 @@ export default function EnglishTutorScreen() {
     }
   }, [inputText, isStreaming, messages, activeStage, addPoints, playTts, fetchSuggestions]);
 
+  const stopRecordingAndTranscribe = useCallback(async () => {
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+    const rec = recordingRef.current;
+    if (!rec) return;
+    recordingRef.current = null;
+
+    try {
+      await rec.stopAndUnloadAsync();
+    } catch {}
+
+    const uri = rec.getURI();
+    await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+
+    if (!uri) {
+      setMicState("idle");
+      return;
+    }
+
+    setMicState("processing");
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+
+      const mimeType = Platform.OS === "ios" ? "audio/m4a" : "audio/webm";
+      const baseUrl = getApiUrl();
+      const sttResp = await fetch(`${baseUrl}api/stt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio: base64, mimeType, language: "en" }),
+      });
+
+      if (sttResp.status === 503) {
+        setMicState("unavailable");
+        setMicBanner("Voice transcription unavailable. Type your message below.");
+        setTimeout(() => { setMicState("idle"); setMicBanner(""); }, 5000);
+        inputRef.current?.focus();
+        return;
+      }
+
+      if (sttResp.ok) {
+        const { text } = await sttResp.json();
+        if (text?.trim()) {
+          const feedback = getPronunciationFeedback(text.trim());
+          setPronunciationFeedback(feedback);
+          setMicState("idle");
+          sendMessage(text.trim(), true);
+          return;
+        }
+      }
+
+      setMicState("idle");
+      setMicBanner("Couldn't hear anything. Try again.");
+      setTimeout(() => setMicBanner(""), 3000);
+    } catch {
+      setMicState("idle");
+      setMicBanner("Recording failed. Please try again.");
+      setTimeout(() => setMicBanner(""), 3000);
+    }
+  }, [sendMessage]);
+
   const handleMic = useCallback(async () => {
+    if (isStreaming) return;
+
     if (Platform.OS === "web") {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SR) {
-        setMicError("Voice not supported in this browser");
-        setTimeout(() => setMicError(""), 3000);
+        setMicBanner("Voice not supported in this browser");
+        setTimeout(() => setMicBanner(""), 3000);
         return;
       }
       const recognition = new SR();
       recognition.lang = "en-US";
       recognition.interimResults = false;
-      setIsRecording(true);
+      setMicState("recording");
       recognition.onresult = (e: any) => {
         const transcript = e.results[0][0].transcript;
         const feedback = getPronunciationFeedback(transcript);
         setPronunciationFeedback(feedback);
+        setMicState("idle");
         sendMessage(transcript, true);
       };
-      recognition.onerror = () => {
-        setMicError("Could not recognize speech");
-        setTimeout(() => setMicError(""), 3000);
-        setIsRecording(false);
+      recognition.onerror = (e: any) => {
+        const msg = e.error === "not-allowed" ? "Microphone permission denied" : "Couldn't hear you. Try again.";
+        setMicBanner(msg);
+        setTimeout(() => setMicBanner(""), 3000);
+        setMicState("idle");
       };
-      recognition.onend = () => setIsRecording(false);
+      recognition.onend = () => setMicState((s) => s === "recording" ? "idle" : s);
       recognition.start();
       return;
     }
 
-    if (isRecording) {
-      try {
-        await recordingRef.current?.stopAndUnloadAsync();
-        const uri = recordingRef.current?.getURI();
-        recordingRef.current = null;
-        setIsRecording(false);
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
-        if (!uri) return;
-
-        const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-        FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
-
-        const baseUrl = getApiUrl();
-        const sttResp = await fetch(`${baseUrl}api/stt`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ audio: base64, language: "en" }),
-        });
-        if (sttResp.ok) {
-          const { text } = await sttResp.json();
-          if (text?.trim()) {
-            const feedback = getPronunciationFeedback(text.trim());
-            setPronunciationFeedback(feedback);
-            sendMessage(text.trim(), true);
-          }
-        }
-      } catch {
-        setIsRecording(false);
-      }
+    if (micState === "recording") {
+      await stopRecordingAndTranscribe();
       return;
     }
+
+    if (micState === "processing") return;
 
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== "granted") {
-        setMicError("Microphone permission denied");
-        setTimeout(() => setMicError(""), 3000);
+        setMicBanner("Microphone permission denied. Allow it in Settings.");
+        setTimeout(() => setMicBanner(""), 4000);
         return;
       }
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
       recordingRef.current = recording;
-      setIsRecording(true);
+      setMicState("recording");
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      autoStopTimerRef.current = setTimeout(() => {
+        stopRecordingAndTranscribe();
+      }, 12000);
     } catch {
-      setIsRecording(false);
-      setMicError("Could not start recording");
-      setTimeout(() => setMicError(""), 3000);
+      setMicState("idle");
+      setMicBanner("Could not access microphone.");
+      setTimeout(() => setMicBanner(""), 3000);
     }
-  }, [isRecording, sendMessage]);
+  }, [micState, isStreaming, sendMessage, stopRecordingAndTranscribe]);
 
   const stageMeta = STAGES.find((s) => s.id === activeStage)!;
 
@@ -339,9 +393,18 @@ export default function EnglishTutorScreen() {
           <View style={c.headerCenter}>
             <Text style={c.headerTitle}>English Tutor</Text>
             <View style={c.liaStatusRow}>
-              <View style={[c.statusDot, { backgroundColor: isSpeaking || showTyping ? "#10B981" : "#A78BFA" }]} />
+              <View style={[c.statusDot, {
+                backgroundColor: micState === "recording" ? "#EF4444"
+                  : micState === "processing" ? "#F59E0B"
+                  : isSpeaking || showTyping ? "#10B981"
+                  : "#A78BFA"
+              }]} />
               <Text style={c.liaStatus}>
-                {showTyping ? "Lia is thinking..." : isSpeaking ? "Lia is speaking..." : "Lia is ready"}
+                {micState === "recording" ? "Listening... (tap mic to stop)"
+                  : micState === "processing" ? "Transcribing..."
+                  : showTyping ? "Lia is thinking..."
+                  : isSpeaking ? "Lia is speaking..."
+                  : "Lia is ready"}
               </Text>
             </View>
           </View>
@@ -419,8 +482,15 @@ export default function EnglishTutorScreen() {
             <PronunciationCard feedback={pronunciationFeedback} colors={colors} onDismiss={() => setPronunciationFeedback(null)} />
           )}
 
-          {micError !== "" && (
-            <Text style={c.micError}>{micError}</Text>
+          {micBanner !== "" && (
+            <View style={[c.micBannerRow, micState === "unavailable" && { backgroundColor: "#F59E0B15", borderColor: "#F59E0B40" }]}>
+              <Ionicons
+                name={micState === "unavailable" ? "warning-outline" : micState === "recording" ? "mic" : "information-circle-outline"}
+                size={13}
+                color={micState === "unavailable" ? "#F59E0B" : micState === "recording" ? "#EF4444" : colors.textMuted}
+              />
+              <Text style={[c.micBannerText, micState === "unavailable" && { color: "#F59E0B" }]}>{micBanner}</Text>
+            </View>
           )}
 
           <View style={c.inputRow}>
@@ -446,8 +516,8 @@ export default function EnglishTutorScreen() {
             <TextInput
               ref={inputRef}
               style={c.textInput}
-              placeholder="Type in English..."
-              placeholderTextColor={colors.textMuted}
+              placeholder={micState === "recording" ? "Listening..." : "Type in English..."}
+              placeholderTextColor={micState === "recording" ? "#EF4444" : colors.textMuted}
               value={inputText}
               onChangeText={setInputText}
               multiline
@@ -457,22 +527,30 @@ export default function EnglishTutorScreen() {
 
             <Pressable
               onPress={handleMic}
+              disabled={micState === "processing" || isStreaming}
               style={({ pressed }) => [
                 c.micBtn,
-                isRecording && { backgroundColor: "#EF444420", borderColor: "#EF444460" },
+                micState === "recording" && { backgroundColor: "#EF444420", borderColor: "#EF444460" },
+                micState === "processing" && { backgroundColor: "#F59E0B20", borderColor: "#F59E0B60" },
                 pressed && { opacity: 0.7 },
               ]}
               testID="tutor-mic-btn"
             >
-              <Ionicons
-                name={isRecording ? "stop-circle" : "mic"}
-                size={20}
-                color={isRecording ? "#EF4444" : "#A78BFA"}
-              />
+              {micState === "processing"
+                ? <ActivityIndicator size="small" color="#F59E0B" />
+                : <Ionicons
+                    name={micState === "recording" ? "stop-circle" : "mic"}
+                    size={20}
+                    color={micState === "recording" ? "#EF4444" : "#A78BFA"}
+                  />
+              }
             </Pressable>
           </View>
 
-          <Text style={c.hint}>Every message = 10 points  •  Tap mic to speak</Text>
+          <Text style={c.hint}>
+            {micState === "recording" ? "Tap the mic again to stop recording"
+              : "Every message = 10 pts  •  Tap mic to speak"}
+          </Text>
         </View>
       </KeyboardAvoidingView>
     </GridBackground>
@@ -749,12 +827,22 @@ function useStyles(colors: any, isDark: boolean) {
       justifyContent: "center",
       marginBottom: 4,
     },
-    micError: {
+    micBannerRow: {
+      flexDirection: "row" as const,
+      alignItems: "center" as const,
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: isDark ? colors.backgroundCard : "#F8F8FF",
+    },
+    micBannerText: {
+      flex: 1,
       fontSize: 12,
       fontFamily: "Cairo_400Regular",
-      color: colors.error,
-      textAlign: "center",
-      paddingBottom: 2,
+      color: colors.textSecondary,
     },
     hint: {
       fontSize: 11,
