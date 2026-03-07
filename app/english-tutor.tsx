@@ -95,6 +95,7 @@ export default function EnglishTutorScreen() {
   const [micBanner, setMicBanner] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [pronunciationFeedback, setPronunciationFeedback] = useState<PronunciationFeedback | null>(null);
+  const [speakingMsgId, setSpeakingMsgId] = useState<string | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
@@ -120,6 +121,7 @@ export default function EnglishTutorScreen() {
     Speech.stop().catch(() => {});
     setMicState("idle");
     setMicBanner("");
+    setSpeakingMsgId(null);
     setActiveStage(stageId);
     setSuggestions([]);
     setPronunciationFeedback(null);
@@ -166,6 +168,24 @@ export default function EnglishTutorScreen() {
       setLoadingSuggestions(false);
     }
   }, []);
+
+  const handleBubbleSpeak = useCallback((msgId: string, text: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (speakingMsgId === msgId) {
+      Speech.stop();
+      setSpeakingMsgId(null);
+      return;
+    }
+    Speech.stop();
+    setSpeakingMsgId(msgId);
+    Speech.speak(text, {
+      language: "en-US",
+      rate: 0.9,
+      onDone: () => setSpeakingMsgId(null),
+      onError: () => setSpeakingMsgId(null),
+      onStopped: () => setSpeakingMsgId(null),
+    });
+  }, [speakingMsgId]);
 
   const sendMessage = useCallback(async (textOverride?: string, isVoiceMsg?: boolean) => {
     const text = (textOverride ?? inputText).trim();
@@ -471,7 +491,13 @@ export default function EnglishTutorScreen() {
           ListHeaderComponent={showTyping ? <TypingBubble colors={colors} isDark={isDark} /> : null}
           renderItem={({ item, index }) => (
             <View>
-              <TutorBubble msg={item} colors={colors} isDark={isDark} />
+              <TutorBubble
+                msg={item}
+                colors={colors}
+                isDark={isDark}
+                onSpeak={handleBubbleSpeak}
+                isPlayingAudio={speakingMsgId === item.id}
+              />
               {item.role === "assistant" && index === 0 && !showTyping && (suggestions.length > 0 || loadingSuggestions) && (
                 <SuggestionsRow
                   suggestions={suggestions}
@@ -564,7 +590,11 @@ export default function EnglishTutorScreen() {
   );
 }
 
-function TutorBubble({ msg, colors, isDark }: { msg: Message; colors: any; isDark: boolean }) {
+function TutorBubble({ msg, colors, isDark, onSpeak, isPlayingAudio }: {
+  msg: Message; colors: any; isDark: boolean;
+  onSpeak: (id: string, text: string) => void;
+  isPlayingAudio: boolean;
+}) {
   const isUser = msg.role === "user";
   return (
     <View style={[tb.row, isUser ? tb.userRow : tb.aiRow]}>
@@ -588,6 +618,19 @@ function TutorBubble({ msg, colors, isDark }: { msg: Message; colors: any; isDar
           </View>
         )}
         <Text style={[tb.text, { color: isUser ? "#fff" : colors.text }]}>{msg.text}</Text>
+        {!isUser && (
+          <Pressable
+            onPress={() => onSpeak(msg.id, msg.text)}
+            style={({ pressed }) => [tb.speakBtn, isPlayingAudio && tb.speakBtnActive, pressed && { opacity: 0.65 }]}
+            hitSlop={8}
+          >
+            <Ionicons
+              name={isPlayingAudio ? "volume-high" : "volume-medium-outline"}
+              size={14}
+              color={isPlayingAudio ? "#7C3AED" : "#A78BFA"}
+            />
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -682,6 +725,8 @@ const tb = StyleSheet.create({
   aiBubble: { borderWidth: 1, borderBottomLeftRadius: 5 },
   text: { fontSize: 15, fontFamily: "Cairo_400Regular", lineHeight: 24 },
   voiceTag: { flexDirection: "row", alignItems: "center", gap: 3, marginBottom: 4, opacity: 0.7 },
+  speakBtn: { alignSelf: "flex-end", marginTop: 6, padding: 4, borderRadius: 10, backgroundColor: "#7C3AED0D" },
+  speakBtnActive: { backgroundColor: "#7C3AED22" },
 });
 
 const sg = StyleSheet.create({
