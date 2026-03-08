@@ -348,7 +348,7 @@ export default function HomeScreen() {
 
         {/* Personal AI Journey */}
         <View style={s.pathSection}>
-          <View style={[s.pathHeaderRow, { flexDirection: "row", justifyContent: "space-between" }]}>
+          <View style={[s.pathHeaderRow, { flexDirection: isRTL ? "row-reverse" : "row", justifyContent: "space-between" }]}>
             <View style={[s.pathTitleGroup, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
               <Text style={s.pathTitle}>{isRTL ? "رحلتي الشخصية" : "My Personal Journey"}</Text>
               <View style={s.pathProgressBadge}>
