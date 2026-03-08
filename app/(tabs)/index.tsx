@@ -348,7 +348,13 @@ export default function HomeScreen() {
 
         {/* Personal AI Journey */}
         <View style={s.pathSection}>
-          <View style={[s.pathHeaderRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+          <View style={[s.pathHeaderRow, { flexDirection: "row", justifyContent: "space-between" }]}>
+            <View style={[s.pathTitleGroup, { flexDirection: isRTL ? "row-reverse" : "row" }]}>
+              <Text style={s.pathTitle}>{isRTL ? "رحلتي الشخصية" : "My Personal Journey"}</Text>
+              <View style={s.pathProgressBadge}>
+                <Text style={s.pathProgress}>{completedJourneySteps.length}/{journeySteps.length}</Text>
+              </View>
+            </View>
             <Pressable
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setJourneySetupOpen(true); }}
               style={s.journeyGenBtn}
@@ -356,10 +362,6 @@ export default function HomeScreen() {
               <Ionicons name="sparkles-outline" size={13} color={colors.blueLight} />
               <Text style={s.journeyGenBtnText}>{isRTL ? "تخصيص" : "Personalize"}</Text>
             </Pressable>
-            <View style={s.pathProgressBadge}>
-              <Text style={s.pathProgress}>{completedJourneySteps.length}/{journeySteps.length}</Text>
-            </View>
-            <Text style={s.pathTitle}>{isRTL ? "رحلتي الشخصية" : "My Personal Journey"}</Text>
           </View>
 
           {journeyGoal ? (
@@ -1773,8 +1775,9 @@ function makeStyles(colors: any, isRTL: boolean, isDark: boolean) {
     aiCardChevron: { opacity: 0.5 },
 
     pathSection: { paddingHorizontal: 20 },
-    pathHeaderRow: { alignItems: "center", gap: 8, marginBottom: 12 },
-    pathTitle: { fontSize: 20, fontFamily: "Cairo_700Bold", color: colors.text, flex: 1 },
+    pathHeaderRow: { alignItems: "center", marginBottom: 12 },
+    pathTitleGroup: { alignItems: "center", gap: 8 },
+    pathTitle: { fontSize: 20, fontFamily: "Cairo_700Bold", color: colors.text },
     pathProgressBadge: { backgroundColor: colors.backgroundCard, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: colors.cardBorder },
     pathProgress: { fontSize: 13, fontFamily: "Cairo_600SemiBold", color: colors.textSecondary },
     journeyGenBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: `${colors.blueLight}12`, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: `${colors.blueLight}25` },
