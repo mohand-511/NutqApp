@@ -359,7 +359,7 @@ export default function HomeScreen() {
             <View style={s.pathProgressBadge}>
               <Text style={s.pathProgress}>{completedJourneySteps.length}/{journeySteps.length}</Text>
             </View>
-            <Text style={s.pathTitle}>{isRTL ? "رحلتي الشخصية" : "My AI Journey"}</Text>
+            <Text style={s.pathTitle}>{isRTL ? "رحلتي الشخصية" : "My Personal Journey"}</Text>
           </View>
 
           {journeyGoal ? (
@@ -1773,7 +1773,7 @@ function makeStyles(colors: any, isRTL: boolean, isDark: boolean) {
     aiCardChevron: { opacity: 0.5 },
 
     pathSection: { paddingHorizontal: 20 },
-    pathHeaderRow: { alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+    pathHeaderRow: { alignItems: "center", gap: 8, marginBottom: 12 },
     pathTitle: { fontSize: 20, fontFamily: "Cairo_700Bold", color: colors.text, flex: 1 },
     pathProgressBadge: { backgroundColor: colors.backgroundCard, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: colors.cardBorder },
     pathProgress: { fontSize: 13, fontFamily: "Cairo_600SemiBold", color: colors.textSecondary },
