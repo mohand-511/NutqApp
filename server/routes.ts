@@ -631,6 +631,65 @@ STAGE COMPLETION: When the user successfully completes the stage task, end your 
     }
   });
 
+  // ── IELTS Coach (streaming) ────────────────────────────────────────────────
+  app.post("/api/ielts-coach", async (req, res) => {
+    try {
+      const { messages, stageName, stageTask, userLevel = "unknown" } = req.body;
+
+      const assessmentBlock = userLevel === "unknown"
+        ? `LEVEL ASSESSMENT MODE: Ask exactly 3 short diagnostic questions, ONE at a time, to gauge their IELTS level.
+Questions to ask in order:
+1. "Have you studied or taken the IELTS exam before?"
+2. "What is your biggest challenge: reading, listening, writing, or speaking?"
+3. "Can you tell me a bit about your current English level and why you need IELTS?"
+After their third answer, output EXACTLY one of these tags on its own line: [LEVEL:Beginner] or [LEVEL:Intermediate] or [LEVEL:Advanced]. Then begin IELTS coaching.`
+        : `Student Level: ${userLevel}. Tailor all practice to this IELTS band level.`;
+
+      const systemPrompt = `You are Lia, an experienced IELTS tutor helping a student prepare for the IELTS exam.
+Current Stage: ${stageName}
+Stage Task: ${stageTask}
+
+${assessmentBlock}
+
+IELTS COACHING RULES:
+1. English ONLY. Never use Arabic.
+2. Start with brief positive feedback on the student's effort.
+3. Give one specific IELTS tip per response (vocabulary, grammar, fluency, coherence, or task achievement).
+4. End every response with ONE clear next IELTS question or instruction.
+5. Keep ALL responses under 40 words. Short. Clear. Exam-focused.
+6. Reference real IELTS criteria: Task Achievement, Coherence, Lexical Resource, Grammatical Range.
+7. Use encouraging markers: "Good attempt!", "Nice effort!", "Excellent!", "Well structured!"
+
+VOICE FEEDBACK: If voice was too quiet, include [WEAK_VOICE] on its own line with 2 IELTS speaking tips.
+
+STAGE COMPLETION: When the student demonstrates clear understanding and completes this stage task, end with [STAGE_COMPLETE] on its own line.`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("X-Accel-Buffering", "no");
+      res.flushHeaders();
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        stream: true,
+        max_tokens: 130,
+        temperature: 0.7,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || "";
+        if (content) res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+      res.write("data: [DONE]\n\n");
+      res.end();
+    } catch (error) {
+      console.error("IELTS coach error:", error);
+      if (!res.headersSent) res.status(500).json({ error: "Coach failed" });
+      else { res.write(`data: ${JSON.stringify({ error: "AI error" })}\n\n`); res.end(); }
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

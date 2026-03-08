@@ -316,6 +316,36 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
+        {/* IELTS Training Card */}
+        <Pressable
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push("/ielts"); }}
+          style={({ pressed }) => [s.aiCard, pressed && { opacity: 0.88 }]}
+          testID="home-ielts-btn"
+        >
+          <LinearGradient
+            colors={isDark ? ["#16A34A28", "#15803D18"] : ["#16A34A18", "#15803D08"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, { borderRadius: 18 }]}
+          />
+          <View style={[s.aiCardInner, { flexDirection: isRTL ? "row" : "row-reverse" }]}>
+            <View style={[s.aiCardChevron, { transform: [{ scaleX: isRTL ? 1 : -1 }] }]}>
+              <Ionicons name="chevron-back" size={18} color={colors.textMuted} />
+            </View>
+            <View style={s.aiCardText}>
+              <Text style={[s.aiCardTitle, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "تدريب IELTS بالذكاء الاصطناعي" : "IELTS Training Plan · Lia"}
+              </Text>
+              <Text style={[s.aiCardSub, { textAlign: isRTL ? "right" : "left" }]}>
+                {isRTL ? "25 مرحلة: استماع، قراءة، كتابة، تحدث" : "25 stages: Listening, Reading, Writing, Speaking"}
+              </Text>
+            </View>
+            <View style={[s.aiCardIcon, { backgroundColor: "#16A34A22", borderColor: "#16A34A40" }]}>
+              <Ionicons name="school-outline" size={22} color="#16A34A" />
+            </View>
+          </View>
+        </Pressable>
+
         {/* Personal AI Journey */}
         <View style={s.pathSection}>
           <View style={[s.pathHeaderRow, { flexDirection: isRTL ? "row" : "row-reverse" }]}>

@@ -1,0 +1,108 @@
+You are a senior AI engineer and React Native + Expo developer.
+
+IMPORTANT RULE:
+Do NOT change the existing UI design, layout, colors, fonts, spacing, navigation, or styling of the app.
+You are ONLY allowed to add new logic and features using the existing UI components.
+
+TASK:
+Add a new feature called "IELTS Training Plan powered by AI".
+
+The feature must create a realistic IELTS preparation program inside the app using AI.
+
+--------------------------------
+
+IELTS TRAINING STRUCTURE
+
+Create a structured learning plan similar to real IELTS preparation programs.
+
+Stage 1 – Foundations (Basic English Skills)
+Goal: Build vocabulary and grammar needed for IELTS.
+
+Tasks:
+• Learn 20 common IELTS vocabulary words daily
+• Practice simple sentence structures
+• Basic listening practice with short conversations
+• Short speaking practice: introduce yourself, talk about your city, describe your day
+
+--------------------------------
+
+Stage 2 – IELTS Listening Skills
+
+Goal: Understand conversations and academic discussions.
+
+Tasks:
+• Practice listening to conversations
+• Identify key words and numbers
+• Practice note completion and multiple choice questions
+• AI asks questions after listening
+
+--------------------------------
+
+Stage 3 – IELTS Reading Skills
+
+Goal: Improve reading speed and comprehension.
+
+Tasks:
+• Skimming and scanning techniques
+• Identify main ideas
+• Practice True / False / Not Given questions
+• Short reading passages with AI-generated questions
+
+--------------------------------
+
+Stage 4 – IELTS Writing Skills
+
+Goal: Learn how to structure IELTS essays.
+
+Tasks:
+• Task 1: Describe charts and graphs
+• Task 2: Opinion essays
+• Learn introduction, body, and conclusion structure
+• AI gives writing prompts and feedback
+
+--------------------------------
+
+Stage 5 – IELTS Speaking Practice
+
+Goal: Simulate real IELTS speaking interviews.
+
+Part 1:
+Personal questions (hobbies, hometown, work, study)
+
+Part 2:
+Cue card speaking task (1 minute preparation, 2 minutes speaking)
+
+Part 3:
+Discussion questions with deeper answers
+
+The AI tutor acts as the IELTS examiner and asks realistic questions.
+
+--------------------------------
+
+AI TUTOR BEHAVIOR
+
+The AI tutor name is Lia.
+
+System prompt:
+
+"You are Lia, an experienced IELTS tutor helping students prepare for the IELTS exam.
+
+Guide the user through the IELTS training stages step by step.
+
+Provide realistic IELTS questions, give feedback, and help the user improve vocabulary, grammar, and fluency."
+
+--------------------------------
+
+FEATURES
+
+• AI-generated practice questions
+• Daily training tasks
+• Stage progression
+• AI feedback on speaking and writing
+• Conversation practice
+
+--------------------------------
+
+GOAL
+
+Create a realistic IELTS preparation system powered by AI that guides users step-by-step through real IELTS training stages while keeping the current app design unchanged.

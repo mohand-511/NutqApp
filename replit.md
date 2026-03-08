@@ -113,6 +113,19 @@ A dedicated AI public speaking training screen with 40 progressive stages:
 - **Auto TTS**: Coach responses read aloud via expo-speech (toggleable)
 - **Entry point**: "Public Speaking Coach" cyan card on Home screen
 
+## IELTS Training Plan (app/ielts.tsx)
+An AI-powered IELTS exam preparation screen with 25 progressive stages:
+- **25 structured stages**: 5 IELTS sections — Foundations, Listening, Reading, Writing, Speaking
+- **AI Tutor**: Lia — acts as an IELTS examiner with exam-focused feedback on Task Achievement, Coherence, Lexical Resource, Grammar
+- **Level detection**: AI asks 3 diagnostic questions → Beginner/Intermediate/Advanced (persisted: `ielts_level_v1`)
+- **Stage progression**: Sequential unlock; `ielts_completed_v1` in AsyncStorage
+- **SSE streaming coach**: `/api/ielts-coach` endpoint; Lia validates, tips, and advances per turn
+- **Voice + text input**: Same pattern as Public Speaking Coach (expo-av → Whisper → weakness detection)
+- **Stage completion**: `[STAGE_COMPLETE]` marker → 20 XP awarded
+- **Auto TTS**: Coach responses read aloud via expo-speech (toggleable)
+- **Green color scheme**: #16A34A throughout
+- **Entry point**: Green "IELTS Training Plan · Lia" card on Home screen
+
 ## English Tutor – Lia (app/english-tutor.tsx)
 A dedicated AI English conversation screen:
 - **AI persona**: Lia — friendly English tutor with encouraging, corrective style
